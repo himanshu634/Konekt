@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebRTC Basic Demo</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>WebRTC Basic Demo</h1>
+    <div class="video-container">
+        <div>
+            <h2>Local Video</h2>
+            <video id="localVideo" autoplay muted playsinline></video>
+        </div>
+        <div>
+            <h2>Remote Video</h2>
+            <video id="remoteVideo" autoplay playsinline></video>
+        </div>
+    </div>
+    <div class="controls">
+        <button id="startButton">Start</button>
+        <button id="callButton" disabled>Call</button>
+        <button id="hangupButton" disabled>Hang Up</button>
+    </div>
+
+    <script>
+        const localVideo = document.getElementById('localVideo');
+        const remoteVideo = document.getElementById('remoteVideo');
+        const startButton = document.getElementById('startButton');
+        const callButton = document.getElementById('callButton');
+        const hangupButton = document.getElementById('hangupButton');
+
+        let localStream;
+        let pc;
+        const signalingServerUrl = 'ws://' + window.location.host + '/ws';
+        let ws;
+
+        const pcConfig = {
+            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        };
+
+        startButton.onclick = async () => {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+                localVideo.srcObject = localStream;
+                startButton.disabled = true;
+                callButton.disabled = false;
+                hangupButton.disabled = false;
+            } catch (e) {
+                alert(`getUserMedia() error: ${e.name}`);
+            }
+        };
+
+        callButton.onclick = () => {
+            callButton.disabled = true;
+            hangupButton.disabled = false;
+            startSignaling();
+            createPeerConnection();
+
+            localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+
+            pc.createOffer()
+                .then(offer => pc.setLocalDescription(offer))
+                .then(() => {
+                    ws.send(JSON.stringify({ type: 'offer', sdp: pc.localDescription.sdp }));
+                })
+                .catch(e => alert(`createOffer() error: ${e.name}`));
+        };
+
+        hangupButton.onclick = () => {
+            if (pc) {
+                pc.close();
+                pc = null;
+            }
+            if (ws) {
+                ws.send(JSON.stringify({ type: 'bye' }));
+                ws.close();
+            }
+            localStream.getTracks().forEach(track => track.stop());
+            localVideo.srcObject = null;
+            remoteVideo.srcObject = null;
+            startButton.disabled = false;
+            callButton.disabled = true;
+            hangupButton.disabled = true;
+        };
+
+        function startSignaling() {
+            ws = new WebSocket(signalingServerUrl);
+
+            ws.onopen = () => {
+                console.log('Connected to signaling server');
+            };
+
+            ws.onmessage = async (message) => {
+                const data = JSON.parse(message.data);
+                console.log('Received message:', data);
+
+                if (data.type === 'offer') {
+                    if (!pc) {
+                        createPeerConnection();
+                         // Add local tracks if not already added by caller
+                        if (!callButton.disabled) { // Check if we are the callee
+                             if (localStream) {
+                                localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+                            } else {
+                                // If local stream not started yet, start it.
+                                try {
+                                    localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+                                    localVideo.srcObject = localStream;
+                                    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+                                } catch (e) {
+                                    alert(`getUserMedia() error: ${e.name}`);
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                    await pc.setRemoteDescription(new RTCSessionDescription(data));
+                    const answer = await pc.createAnswer();
+                    await pc.setLocalDescription(answer);
+                    ws.send(JSON.stringify({ type: 'answer', sdp: pc.localDescription.sdp }));
+                    callButton.disabled = true; // Disable call button for callee as well
+                    hangupButton.disabled = false;
+                } else if (data.type === 'answer') {
+                    await pc.setRemoteDescription(new RTCSessionDescription(data));
+                } else if (data.type === 'candidate') {
+                    if (pc.remoteDescription) { // Only add candidate if remote description is set
+                        try {
+                            await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+                        } catch (e) {
+                            console.error('Error adding received ICE candidate', e);
+                        }
+                    } else {
+                        console.warn('Remote description not set, queuing candidate');
+                        // Potentially queue candidate if needed, or rely on trickle ICE from server
+                    }
+                } else if (data.type === 'bye') {
+                    if (pc) {
+                        pc.close();
+                        pc = null;
+                    }
+                    remoteVideo.srcObject = null;
+                    callButton.disabled = false; // Allow making new calls
+                }
+            };
+
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                alert('WebSocket error. Check console for details.');
+            };
+
+            ws.onclose = () => {
+                console.log('Disconnected from signaling server');
+                 if (pc && pc.signalingState !== 'closed') { // Don't nullify if already closed by hangup
+                    pc.close();
+                    pc = null;
+                }
+                // Don't reset buttons here to allow UI to reflect current state until explicit hangup
+            };
+        }
+
+        function createPeerConnection() {
+            pc = new RTCPeerConnection(pcConfig);
+            pc.onicecandidate = event => {
+                if (event.candidate) {
+                    ws.send(JSON.stringify({ type: 'candidate', candidate: event.candidate.toJSON() }));
+                }
+            };
+            pc.ontrack = event => {
+                if (remoteVideo.srcObject !== event.streams[0]) {
+                    remoteVideo.srcObject = event.streams[0];
+                    console.log('pc received remote stream');
+                }
+            };
+            pc.oniceconnectionstatechange = () => {
+                console.log(`ICE connection state change: ${pc.iceConnectionState}`);
+                if (pc.iceConnectionState === 'failed' ||
+                    pc.iceConnectionState === 'disconnected' ||
+                    pc.iceConnectionState === 'closed') {
+                    // Handle connection failure/closure
+                    // remoteVideo.srcObject = null; // Optionally clear remote video
+                }
+            };
+        }
+    </script>
+</body>
+</html>
