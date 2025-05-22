@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "exports": {
+    "./styles": "./dist/index.css",
     ".": "./src/components/*.ts",
     "./button": "./src/components/button.tsx",
     "./alert": "./src/components/alert.tsx",
@@ -13,9 +14,7 @@
     "./label": "./src/components/label.tsx"
   },
   "scripts": {
-    "dev": "bun --hot src/index.tsx",
-    "start": "NODE_ENV=production bun src/index.tsx",
-    "build": "bun run build.ts"
+    "dev": "npx @tailwindcss/cli -i ./styles/globals.css -o ./dist/index.css --watch"
   },
   "dependencies": {
     "@hookform/resolvers": "^4.1.0",

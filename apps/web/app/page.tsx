@@ -1,5 +1,5 @@
-import { Button } from "@konekt/ui/button";
+import { Home } from "@components/pages/home/home";
 
-export default function Home() {
-  return <div></div>;
+export default function HomePage() {
+  return <Home />;
 }
