@@ -11,14 +11,15 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
-    "@repo/ui": "*",
+    "@konekt/ui": "*",
     "next": "^15.3.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
-    "@repo/eslint-config": "*",
-    "@repo/typescript-config": "*",
+    "@konekt/eslint-config": "*",
+    "@konekt/typescript-config": "*",
+    "@konekt/ui": "*",
     "@types/node": "^22.15.3",
     "@types/react": "19.1.0",
     "@types/react-dom": "19.1.1",

@@ -1,0 +1,3 @@
+{
+  "extends": "@konekt/typescript-config/base.json"
+}

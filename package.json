@@ -1,5 +1,5 @@
 {
-  "name": "Konekt",
+  "name": "konekt",
   "private": true,
   "scripts": {
     "build": "turbo run build",
