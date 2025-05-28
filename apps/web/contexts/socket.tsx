@@ -5,7 +5,7 @@ import React, {
   useContext,
   useEffect,
   ReactNode,
-  useRef, // Add useRef
+  useState, // Add useState
 } from "react";
 import { io, Socket } from "socket.io-client";
 
@@ -28,21 +28,25 @@ type SocketProviderProps = {
 };
 
 export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
-  const socketRef = useRef<Socket | null>(null); // Use useRef for socket
+  const [socket, setSocket] = useState<Socket | null>(null); // Use useState for socket
 
   useEffect(() => {
     // Replace with your server URL
-    const socketInstance = io(process.env.NEXT_PUBLIC_SOCKET_URL);
+    const socketInstance = io(process.env.NEXT_PUBLIC_SOCKET_URL!);
 
     socketInstance.on("connect", () => {
       console.log("Connected to socket server");
+    });
+
+    socketInstance.on("welcome", (data) => {
+      console.log("Welcome message from server:", data);
     });
 
     socketInstance.on("disconnect", () => {
       console.log("Disconnected from socket server");
     });
 
-    socketRef.current = socketInstance; // Assign to ref
+    setSocket(socketInstance); // Assign to state
 
     // Cleanup on component unmount
     return () => {
@@ -50,8 +54,12 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
     };
   }, []);
 
+  if (!socket) {
+    return <p>Connecting to socket...</p>; // Don't render children if socket is not available
+  }
+
   return (
-    <SocketContext.Provider value={{ socket: socketRef.current }}>
+    <SocketContext.Provider value={{ socket }}>
       {children}
     </SocketContext.Provider>
   );
