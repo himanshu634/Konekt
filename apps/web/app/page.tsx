@@ -1,10 +1,5 @@
-import { Home } from "@components/pages/home/home";
-import { SocketProvider } from "contexts/socket";
+import { Home } from "@components/home";
 
 export default function HomePage() {
-  return (
-    <SocketProvider>
-      <Home />
-    </SocketProvider>
-  );
+  return <Home />;
 }

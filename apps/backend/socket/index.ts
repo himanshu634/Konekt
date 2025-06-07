@@ -1,11 +1,8 @@
 import { Server } from "socket.io";
 import type { Server as HTTPServer } from "http";
-import {
-  handleClientConnection,
-  handleClientDisconnection,
-} from "./client-events";
-import type { ConnectedClientsMap, RoomsMap } from "./client-events"; // Import types separately
-import { handleRoomEvents } from "./room-events";
+import { SOCKET_EVENTS } from "./event-names";
+
+const users = new Map<string, string>();
 
 export function initializeSocket(httpServer: HTTPServer) {
   const io = new Server(httpServer, {
@@ -16,23 +13,22 @@ export function initializeSocket(httpServer: HTTPServer) {
     },
   });
 
-  // Track connected clients
-  const connectedClients: ConnectedClientsMap = new Map();
-  // Track rooms and their members
-  const rooms: RoomsMap = new Map();
+  io.on(SOCKET_EVENTS.CONNECT, (socket) => {
+    console.log(`Socket connected: ${socket.id}`);
 
-  io.on("connection", (socket) => {
-    handleClientConnection(io, socket, connectedClients, rooms);
-    handleRoomEvents(io, socket, rooms); // Pass io here as well if needed by room events for broadcasts
-
-    // Handle disconnect
-    socket.on("disconnect", (reason) => {
-      handleClientDisconnection(io, socket, connectedClients, rooms, reason);
+    socket.on(SOCKET_EVENTS.DISCONNECT, (reason) => {
+      console.log(`Socket disconnected: ${socket.id}, Reason: ${reason}`);
     });
-  });
 
-  io.on("error", (error) => {
-    console.error("Socket.IO error:", error);
+    socket.on(SOCKET_EVENTS.CALL, (data) => {
+      console.log(`Call event received: ${JSON.stringify(data)}`);
+      // Handle call event logic here
+      // For example, emit a response back to the client
+      socket.emit(SOCKET_EVENTS.CALL_RESPONSE, {
+        message: "Call received",
+        data,
+      });
+    });
   });
 
   // Return io instance for potential use elsewhere
