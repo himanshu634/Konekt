@@ -15,6 +15,18 @@
 
 ---
 
+## 🧰 Tech Stack
+
+| Category     | Tools Used                                                                    |
+| ------------ | ----------------------------------------------------------------------------- |
+| Frontend     | [Next.js](https://nextjs.org/), [React.js](https://reactjs.org/)              |
+| Styling      | [Tailwind CSS](https://tailwindcss.com/), [shadcn/ui](https://ui.shadcn.com/) |
+| Game/Video   | [WebRTC](https://webrtc.org/) for peer-to-peer video                          |
+| Real-time    | [Socket.IO](https://socket.io/) for real-time matchmaking                     |
+| Build System | [Bun](https://bun.sh/), [Turborepo](https://turbo.build/repo)                 |
+
+---
+
 ## 🚀 Getting Started
 
 ### Prerequisites
