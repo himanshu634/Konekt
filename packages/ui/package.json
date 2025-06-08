@@ -11,7 +11,8 @@
     "./form": "./src/components/form.tsx",
     "./input": "./src/components/input.tsx",
     "./select": "./src/components/select.tsx",
-    "./label": "./src/components/label.tsx"
+    "./label": "./src/components/label.tsx",
+    "./utils": "./src/lib/utils.ts"
   },
   "scripts": {
     "dev": "npx @tailwindcss/cli -i ./styles/globals.css -o ./dist/index.css --watch"

@@ -1,8 +1,6 @@
 import { Server } from "socket.io";
 import type { Server as HTTPServer } from "http";
 import { SOCKET_EVENTS } from "./event-names";
-// import { use } from "react";
-// import { addUser } from "./users";
 
 const usersMap: Array<string> = [];
 
