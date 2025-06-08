@@ -3,10 +3,12 @@ import { socket } from "@socket/socket";
 import { SOCKET_EVENTS } from "@socket/events";
 import { Button } from "@konekt/ui/button";
 import { cn } from "@konekt/ui/utils";
+import { VideoPlayer } from "./video-player";
 
-type VideoPlayersPropsType = ComponentProps<"div">;
+type VideoPlayersPropsType = ComponentProps<"div"> & { userName: string };
 
 export function VideoPlayers({
+  userName,
   className,
   ...restProps
 }: VideoPlayersPropsType) {
@@ -132,18 +134,8 @@ export function VideoPlayers({
   return (
     <div className={cn("space-y-4", className)} {...restProps}>
       <div className="space-y-4">
-        <video
-          ref={localVideoRef}
-          autoPlay
-          playsInline
-          className="rounded-2xl overflow-clip border-2"
-        />
-        <video
-          ref={remoteVideoRef}
-          autoPlay
-          playsInline
-          className="rounded-2xl border-2"
-        />
+        <VideoPlayer ref={localVideoRef} userName={userName} />
+        <VideoPlayer ref={remoteVideoRef} />
       </div>
       <Button className="mx-auto" onClick={handleClick}>
         Call
