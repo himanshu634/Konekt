@@ -1,5 +1,3 @@
-import { Home } from "@components/home";
-
 export default function HomePage() {
-  return <Home />;
+  return <div>Name enter screen</div>;
 }

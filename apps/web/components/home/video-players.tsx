@@ -1,24 +1,22 @@
-"use client";
-import { useWindowSize } from "usehooks-ts";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useRef, useEffect, useCallback, ComponentProps } from "react";
 import { socket } from "@socket/socket";
 import { SOCKET_EVENTS } from "@socket/events";
 import { Button } from "@konekt/ui/button";
-import { Input } from "@konekt/ui/input";
+import { cn } from "@konekt/ui/utils";
 
-export function Home() {
-  const peerConnectionRef = useRef<RTCPeerConnection | null>(
-    new RTCPeerConnection()
-  );
+type VideoPlayersPropsType = ComponentProps<"div">;
+
+export function VideoPlayers({
+  className,
+  ...restProps
+}: VideoPlayersPropsType) {
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
-  const [userName, setUserName] = useState("");
-  const { width, height } = useWindowSize();
 
   useEffect(() => {
+    peerConnectionRef.current = new RTCPeerConnection();
     const peerConnection = peerConnectionRef.current;
-
-    if (!peerConnection) return;
 
     // Handle ICE candidates
     peerConnection.onicecandidate = (event) => {
@@ -132,35 +130,24 @@ export function Home() {
   }, []);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-center gap-4">
+    <div className={cn("space-y-4", className)} {...restProps}>
+      <div className="space-y-4">
         <video
           ref={localVideoRef}
           autoPlay
           playsInline
-          style={{
-            height: height * 0.4,
-            width: width * 0.4,
-          }}
-          className="rounded-2xl overflow-clip border-2 border-blue-500"
+          className="rounded-2xl overflow-clip border-2"
         />
         <video
           ref={remoteVideoRef}
           autoPlay
           playsInline
-          className="rounded-2xl border-2 border-blue-500"
+          className="rounded-2xl border-2"
         />
       </div>
-      <Button onClick={handleClick}>Call</Button>
-      <div>
-        <Input
-          placeholder="Enter your name"
-          onChange={(event) => {
-            setUserName(event.target.value);
-          }}
-        />
-        {/* <Button onClick={handleJoin}>Join</Button> */}
-      </div>
+      <Button className="mx-auto" onClick={handleClick}>
+        Call
+      </Button>
     </div>
   );
 }
