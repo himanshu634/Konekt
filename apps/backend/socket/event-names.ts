@@ -5,6 +5,10 @@ export const SOCKET_EVENTS = {
   CALL_RECEIVED: "callReceived",
   ANSWER: "answer",
   OFFER: "offer",
-  JOIN: "join",
   CANDIDATE: "candidate",
+  JOIN_QUEUE: "joinQueue",
+  LEAVE_QUEUE: "leaveQueue",
+  WAITING_FOR_MATCH: "waitingForMatch",
+  ROOM_CREATED: "roomCreated",
+  ROOM_MATE_LEFT: "roomMateLeft",
 } as const;
