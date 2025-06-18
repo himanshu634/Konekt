@@ -1,4 +1,10 @@
-import { useRef, useEffect, useCallback, ComponentProps, useState } from "react";
+import {
+  useRef,
+  useEffect,
+  useCallback,
+  ComponentProps,
+  useState,
+} from "react";
 import { socket } from "@socket/socket";
 import { SOCKET_EVENTS } from "@socket/events";
 import { Button } from "@konekt/ui/button";
@@ -15,9 +21,14 @@ export function VideoPlayers({
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
-  
-  const [connectionState, setConnectionState] = useState<'idle' | 'waiting' | 'matched' | 'calling' | 'connected'>('idle');
-  const [roomInfo, setRoomInfo] = useState<{ roomId?: string; otherUser?: string }>({});
+
+  const [connectionState, setConnectionState] = useState<
+    "idle" | "waiting" | "matched" | "calling" | "connected"
+  >("idle");
+  const [roomInfo, setRoomInfo] = useState<{
+    roomId?: string;
+    otherUser?: string;
+  }>({});
 
   useEffect(() => {
     peerConnectionRef.current = new RTCPeerConnection();
@@ -37,7 +48,7 @@ export function VideoPlayers({
       if (remoteVideo) {
         if (event.streams[0]) remoteVideo.srcObject = event.streams[0];
         remoteVideo.play();
-        setConnectionState('connected');
+        setConnectionState("connected");
       }
     };
 
@@ -92,8 +103,8 @@ export function VideoPlayers({
       const peerConnection = peerConnectionRef.current;
       if (!peerConnection) return;
       console.log("Call received:", data);
-      setConnectionState('calling');
-      
+      setConnectionState("calling");
+
       if (data.offer.type === "offer") {
         await peerConnection.setRemoteDescription(
           new RTCSessionDescription(data.offer)
@@ -119,24 +130,21 @@ export function VideoPlayers({
 
     // NEW: Room-based event handlers
     const handleWaitingForMatch = () => {
-      console.log("Waiting for match...");
-      setConnectionState('waiting');
+      setConnectionState("waiting");
     };
 
     const handleRoomCreated = (data: any) => {
-      console.log("Room created:", data);
-      setConnectionState('matched');
-      setRoomInfo({ 
-        roomId: data.roomId, 
-        otherUser: data.users.find((id: string) => id !== socket.id) 
+      setConnectionState("matched");
+      setRoomInfo({
+        roomId: data.roomId,
+        otherUser: data.users.find((id: string) => id !== socket.id),
       });
     };
 
     const handleRoomMateLeft = (data: any) => {
-      console.log("Room mate left:", data);
-      setConnectionState('waiting');
+      setConnectionState("waiting");
       setRoomInfo({});
-      
+
       // Reset remote video since partner left
       const remoteVideo = remoteVideoRef.current;
       if (remoteVideo) {
@@ -163,17 +171,17 @@ export function VideoPlayers({
 
   const handleFindMatch = useCallback(() => {
     console.log("Joining queue...");
-    setConnectionState('waiting');
+    setConnectionState("waiting");
     socket.emit(SOCKET_EVENTS.JOIN_QUEUE);
   }, []);
 
   const handleStartCall = useCallback(async () => {
     const peerConnection = peerConnectionRef.current;
     if (!peerConnection) return;
-    
+
     console.log("Starting call...");
-    setConnectionState('calling');
-    
+    setConnectionState("calling");
+
     const localOffer = await peerConnection.createOffer();
     await peerConnection.setLocalDescription(localOffer);
     socket.emit(SOCKET_EVENTS.CALL, { offer: localOffer });
@@ -181,54 +189,86 @@ export function VideoPlayers({
 
   const handleLeaveQueue = useCallback(() => {
     console.log("Leaving queue...");
-    setConnectionState('idle');
+    setConnectionState("idle");
     setRoomInfo({});
     socket.emit(SOCKET_EVENTS.LEAVE_QUEUE);
   }, []);
 
   const getButtonConfig = () => {
     switch (connectionState) {
-      case 'idle':
-        return { text: 'Find Match', action: handleFindMatch, disabled: false, variant: 'default' as const };
-      case 'waiting':
-        return { text: 'Cancel Search', action: handleLeaveQueue, disabled: false, variant: 'outline' as const };
-      case 'matched':
-        return { text: 'Start Call', action: handleStartCall, disabled: false, variant: 'default' as const };
-      case 'calling':
-        return { text: 'Connecting...', action: () => {}, disabled: true, variant: 'default' as const };
-      case 'connected':
-        return { text: 'Connected!', action: () => {}, disabled: true, variant: 'default' as const };
+      case "idle":
+        return {
+          text: "Find Match",
+          action: handleFindMatch,
+          disabled: false,
+          variant: "default" as const,
+        };
+      case "waiting":
+        return {
+          text: "Cancel Search",
+          action: handleLeaveQueue,
+          disabled: false,
+          variant: "outline" as const,
+        };
+      case "matched":
+        return {
+          text: "Start Call",
+          action: handleStartCall,
+          disabled: false,
+          variant: "default" as const,
+        };
+      case "calling":
+        return {
+          text: "Connecting...",
+          action: () => {},
+          disabled: true,
+          variant: "default" as const,
+        };
+      case "connected":
+        return {
+          text: "Connected!",
+          action: () => {},
+          disabled: true,
+          variant: "default" as const,
+        };
       default:
-        return { text: 'Find Match', action: handleFindMatch, disabled: false, variant: 'default' as const };
+        return {
+          text: "Find Match",
+          action: handleFindMatch,
+          disabled: false,
+          variant: "default" as const,
+        };
     }
   };
 
   const buttonConfig = getButtonConfig();
 
   return (
-    <div className={cn("space-y-4", className)} {...restProps}>
+    <div className={cn("space-y-4 w-full bg-white", className)} {...restProps}>
       <div className="space-y-4">
         <VideoPlayer ref={localVideoRef} userName={userName} />
         <VideoPlayer ref={remoteVideoRef} />
       </div>
-      
+
       <div className="text-center text-sm text-gray-600 min-h-[20px]">
-        {connectionState === 'idle' && "Find a match!"}
-        {connectionState === 'waiting' && "Looking for someone to connect with..."}
-        {connectionState === 'matched' && `Match found! Ready to call.`}
-        {connectionState === 'calling' && "Establishing connection..."}
-        {connectionState === 'connected' && "Connection established! You can now talk."}
+        {connectionState === "idle" && "Find a match!"}
+        {connectionState === "waiting" &&
+          "Looking for someone to connect with..."}
+        {connectionState === "matched" && `Match found! Ready to call.`}
+        {connectionState === "calling" && "Establishing connection..."}
+        {connectionState === "connected" &&
+          "Connection established! You can now talk."}
       </div>
-      
-      <Button 
-        className="mx-auto" 
+
+      <Button
+        className="mx-auto"
         onClick={buttonConfig.action}
         disabled={buttonConfig.disabled}
         variant={buttonConfig.variant}
       >
         {buttonConfig.text}
       </Button>
-      
+
       {roomInfo.roomId && (
         <div className="text-xs text-gray-400 text-center">
           Room: {roomInfo.roomId.slice(-8)}
