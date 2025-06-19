@@ -3,6 +3,7 @@ import { Chessboard } from "react-chessboard";
 import { useWindowSize } from "usehooks-ts";
 import { useState, useCallback } from "react";
 import { Chess } from "chess.js";
+import { toast } from "sonner";
 import { TurnIndicator } from "./turn-indicator";
 
 // Types for move tracking
@@ -58,6 +59,12 @@ export function Game() {
   // Track piece movements
   const handlePieceDrop = useCallback(
     (sourceSquare: string, targetSquare: string, piece: string) => {
+      // Check if game is already over
+      if (gameState.isGameOver) {
+        toast.error("Game is over! No more moves allowed.");
+        return false;
+      }
+
       // Make a copy of the game to test the move
       const gameCopy = new Chess(game.fen());
 
@@ -74,6 +81,7 @@ export function Game() {
           console.log(
             `Invalid move: ${piece} from ${sourceSquare} to ${targetSquare}`
           );
+          toast.error("Invalid move! Please try a different move.");
           return false;
         }
 
@@ -126,6 +134,7 @@ export function Game() {
           `Invalid move: ${piece} from ${sourceSquare} to ${targetSquare}`,
           error
         );
+        toast.error("Invalid move! Please try a different move.");
         return false;
       }
     },
