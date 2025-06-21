@@ -5,6 +5,9 @@ export const SOCKET_EVENTS = {
   CALL_RECEIVED: "callReceived",
   ANSWER: "answer",
   OFFER: "offer",
+  /**
+   * Event to handle ICE candidates during WebRTC connection establishment.
+   */
   CANDIDATE: "candidate",
   JOIN_QUEUE: "joinQueue",
   LEAVE_QUEUE: "leaveQueue",

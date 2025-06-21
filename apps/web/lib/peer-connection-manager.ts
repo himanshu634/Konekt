@@ -1,60 +1,79 @@
 import { SOCKET_EVENTS } from "@socket/events";
 import { Socket } from "socket.io-client";
 
-class PeerConnectionManager {
+export class PeerConnectionManager {
   private peerConnection: RTCPeerConnection | null = null;
   private dataChannel: RTCDataChannel | null = null;
-  private socket: Socket | null = null;
+  private socket: Socket;
+  private isInitiator: boolean = false;
 
-  constructor(socket: Socket) {
-    this.initializePeerConnection();
+  /**
+   * Creates an instance of PeerConnectionManager.
+   * @param param0 - Configuration object containing `isInitiator` and `socket`.
+   */
+  constructor({
+    isInitiator,
+    socket,
+  }: {
+    isInitiator: boolean;
+    socket: Socket;
+  }) {
+    this.isInitiator = isInitiator;
     this.socket = socket;
+    this.initializePeerConnection();
   }
 
-  private handleIceCandidate = (event: RTCPeerConnectionIceEvent) => {
-    if (event.candidate) {
-      console.log("New ICE candidate:", event.candidate);
-      this.socket?.emit(SOCKET_EVENTS.CANDIDATE, {
-        candidate: event.candidate,
-      });
-      // Here you would typically send the candidate to the remote peer
-    }
-  };
-
-  private handleDataChannel = (event: RTCDataChannelEvent) => {
-    console.log("Data channel received:", event.channel);
-    this.dataChannel = event.channel;
-    this.setupDataChannel();
-  };
-
-  private addEventListeners() {
-    if (!this.peerConnection) return;
-
-    this.peerConnection.addEventListener(
-      "icecandidate",
-      this.handleIceCandidate
-    );
-
-    this.peerConnection.addEventListener("datachannel", this.handleDataChannel);
-  }
-
+  /**
+   * Initializes the RTCPeerConnection and sets up the data channel if this peer is the initiator.
+   */
   private initializePeerConnection() {
     this.peerConnection = new RTCPeerConnection();
-    this.addEventListeners();
+    this.peerConnection.onicecandidate = this.handleIceCandidate;
+    this.peerConnection.ontrack = this.handleTrack;
   }
 
-  private setupDataChannel() {
-    if (!this.dataChannel) return;
-
-    this.dataChannel.onopen = () => {
-      console.log("Data channel opened");
-    };
-
-    this.dataChannel.onmessage = (event) => {
-      console.log("Message received:", event.data);
-      // Handle incoming messages
-    };
+  /**
+   * Removes event listeners from the peer connection.
+   */
+  private removeEventListeners() {
+    if (!this.peerConnection) return;
+    this.peerConnection.onicecandidate = null;
+    this.peerConnection.ontrack = null;
   }
+
+  /**
+   * Handles incoming media tracks.
+   * @param event - The RTCTrackEvent containing the track.
+   */
+  private handleTrack = (event: RTCTrackEvent) => {
+    console.log("Track received:", event);
+  };
+
+  /**
+   * Handles incoming ICE candidates.
+   * @param event - The RTCPeerConnectionIceEvent containing the ICE candidate.
+   */
+  private handleIceCandidate(event: RTCPeerConnectionIceEvent) {
+    if (event.candidate) {
+      console.log("New ICE candidate:", event.candidate);
+      this.socket.emit(SOCKET_EVENTS.CANDIDATE, { candidate: event.candidate });
+    } else {
+      console.log("All ICE candidates have been sent.");
+    }
+  }
+
+  // private setupDataChannel() {
+  //   if (!this.dataChannel) return;
+
+  //   this.dataChannel.onopen = () => {
+  //     console.log("Data channel opened");
+  //   };
+
+  //   this.dataChannel.onmessage = (event) => {
+  //     console.log("Message received:", event.data);
+  //     // Handle incoming messages
+  //   };
+  // }
 
   public getPeerConnection() {
     return this.peerConnection;
@@ -64,55 +83,41 @@ class PeerConnectionManager {
     return this.dataChannel;
   }
 
-  public async createCall() {
-    if (!this.peerConnection) return null;
-    try {
-      const offer = await this.peerConnection.createOffer();
-      // Set the local description with the offer
-      await this.peerConnection.setLocalDescription(offer);
-      //  Emit the offer to the server
-      this.socket?.emit(SOCKET_EVENTS.CALL, { offer });
-    } catch (error) {
-      console.error("Failed to create offer:", error);
-      return null;
-    }
+  /**
+   * Destroys the peer connection and cleans up resources.
+   */
+  public destroy() {
+    this.peerConnection?.close();
+    this.removeEventListeners();
   }
 
-  public async answerCall(offer: RTCSessionDescriptionInit) {
-    try {
-      if (!this.peerConnection)
-        throw new Error("Peer connection not initialized");
-
-      // Set the remote description with the offer
-      await this.peerConnection.setRemoteDescription(offer);
-
-      // Create an answer
-      const answer = await this.peerConnection.createAnswer();
-
-      // Set the local description with the answer
-      await this.peerConnection.setLocalDescription(answer);
-
-      // Emit the answer to the server
-      this.socket?.emit(SOCKET_EVENTS.ANSWER, { answer });
-    } catch (error) {
-      console.error("Failed to answer call:", error);
-      return null;
+  /**
+   * Adds media tracks from the provided streams to the peer connection.
+   */
+  public addTracks(streams: MediaStream[]) {
+    if (!this.peerConnection) {
+      console.error("Peer connection is not initialized.");
+      return;
     }
+    streams.forEach((stream) => {
+      stream.getTracks().forEach((track) => {
+        this.peerConnection?.addTrack(track, stream);
+      });
+    });
   }
 
-  public cleanup() {
-    if (!this.peerConnection) return;
-
-    this.peerConnection.removeEventListener(
-      "icecandidate",
-      this.handleIceCandidate
-    );
-    this.peerConnection.removeEventListener(
-      "datachannel",
-      this.handleDataChannel
-    );
-
-    this.peerConnection.close();
-    this.peerConnection = null;
+  /**
+   * Add an offer to the peer connection.
+   * @param offer - The SDP offer to set.
+   */
+  public async setOffer(offer: RTCSessionDescriptionInit) {
+    if (!this.peerConnection) {
+      console.error("Peer connection is not initialized.");
+      return;
+    }
+    await this.peerConnection.setRemoteDescription(offer);
+    const answer = await this.peerConnection.createAnswer();
+    await this.peerConnection.setLocalDescription(answer);
+    this.socket.emit(SOCKET_EVENTS.ANSWER, { answer });
   }
 }
