@@ -17,7 +17,7 @@
 
 .toaster [data-type="error"] [data-close-button] {
   color: hsl(var(--destructive-foreground)) !important;
-  border-color: hsl(var(--destructive-foreground)) !important;
+  border-color: hsl(var(--destructive-forround)) !important;
   opacity: 0.8;
 }
 

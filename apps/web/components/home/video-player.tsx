@@ -18,7 +18,7 @@ export function VideoPlayer({
         autoPlay
         playsInline
         className={cn(
-          "rounded-2xl h-50 w-80 object-center object-cover overflow-clip border-4 border-blue-400",
+          "rounded-2xl h-50 w-80 shrink-0 object-center object-cover overflow-clip border-4 border-blue-400",
           className
         )}
         {...restProps}

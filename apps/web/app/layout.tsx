@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { TopBar } from "@components/top-bar";
 import { Toaster } from "@konekt/ui/sonner";
+import { BaseProvider } from "contexts/base";
 
 export const metadata: Metadata = {
   title: "Create Next App",
@@ -17,9 +18,11 @@ export default function RootLayout({
     <html lang="en">
       <body className="dark">
         <main className="h-screen flex flex-col">
-          <TopBar />
-          <div className="flex-grow overflow-y-auto">{children}</div>
-          <Toaster position="top-right" closeButton />
+          <BaseProvider>
+            <TopBar />
+            <div className="flex-grow overflow-y-auto">{children}</div>
+            <Toaster position="top-right" closeButton />
+          </BaseProvider>
         </main>
       </body>
     </html>

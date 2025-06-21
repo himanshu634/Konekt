@@ -1,10 +1,11 @@
 import { cn } from "@konekt/ui/utils";
 import { Chessboard } from "react-chessboard";
 import { useWindowSize } from "usehooks-ts";
-import { useState, useCallback } from "react";
-import { Chess } from "chess.js";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { Chess as ChessEngine } from "chess.js";
 import { toast } from "sonner";
 import { TurnIndicator } from "./turn-indicator";
+import { useBaseContext } from "contexts/base";
 
 // Types for move tracking
 type Move = {
@@ -25,21 +26,65 @@ type GameState = {
   result?: string;
 };
 
-export function Game() {
+export function Chess() {
   const { height, width } = useWindowSize();
+  const { peerConnectionRef } = useBaseContext();
+  const dataChannelRef = useRef<RTCDataChannel | null>(null);
 
   // Initialize chess game
-  const [game] = useState(() => new Chess());
+  const [game] = useState(() => new ChessEngine());
   const [gamePosition, setGamePosition] = useState(game.fen());
   const [gameState, setGameState] = useState<GameState>({
     moves: [],
     currentPosition: game.fen(),
-    turn: "w",
+    turn: Math.random() < 0.5 ? "w" : "b", // Randomly assign starting turn
     isGameOver: false,
   });
 
+  useEffect(() => {
+    const peerConnection = peerConnectionRef.current.peerConnection;
+    const isInitiator = peerConnectionRef.current.isInitiator;
+    console.log("Peer connection:", peerConnection, isInitiator);
+    if (!peerConnection) {
+      console.error("Peer connection is not initialized.");
+      return;
+    }
+
+    function handleMessage(event: MessageEvent) {
+      console.log("Message received:", event.data);
+      // const data = JSON.parse(event.data);
+      // if (data.type === "move") {
+      //   handlePieceDrop(data.from, data.to, data.piece);
+      // } else if (data.type === "gameState") {
+      //   setGameState(data.gameState);
+      //   setGamePosition(data.gameState.currentPosition);
+      // }
+    }
+
+    if (isInitiator) {
+      // Create a data channel if this peer is the initiator
+      console.log("Creating data channel as initiator");
+      const dataChannel = peerConnection.createDataChannel("chess");
+
+      dataChannel.onopen = (event) => {
+        console.log("Data channel opened:", event);
+        dataChannelRef.current = dataChannel;
+      };
+
+      dataChannel.onmessage = handleMessage;
+    }
+    peerConnection.ondatachannel = (event) => {
+      const receivedChannel = event.channel;
+      // Set up the received data channel
+      dataChannelRef.current = receivedChannel;
+      console.log("Data channel received:", event.channel);
+
+      receivedChannel.onmessage = handleMessage;
+    };
+  }, []);
+
   // Helper function to get the current game result
-  const getCurrentGameResult = (gameInstance: Chess) => {
+  const getCurrentGameResult = useCallback((gameInstance: ChessEngine) => {
     if (gameInstance.isCheckmate()) {
       return gameInstance.turn() === "w"
         ? "Black wins by checkmate"
@@ -54,7 +99,7 @@ export function Game() {
       return "Draw";
     }
     return undefined;
-  };
+  }, []);
 
   // Track piece movements
   const handlePieceDrop = useCallback(
@@ -65,10 +110,8 @@ export function Game() {
         return false;
       }
 
-      // Make a copy of the game to test the move
-      const gameCopy = new Chess(game.fen());
-
       try {
+        const gameCopy = new ChessEngine(game.fen());
         // Attempt to make the move
         const move = gameCopy.move({
           from: sourceSquare,
@@ -138,7 +181,7 @@ export function Game() {
         return false;
       }
     },
-    [game, gameState]
+    [game, gameState.isGameOver, gameState.moves, getCurrentGameResult]
   );
 
   return (

@@ -1,7 +1,7 @@
 "use client";
-import { ComponentProps, useEffect } from "react";
+import { ComponentProps, useEffect, useRef } from "react";
 import { VideoPlayers } from "./streams";
-import { Game } from "./game";
+import { Chess } from "./chess";
 import { cn } from "@konekt/ui/utils";
 import { useRouter } from "next/navigation";
 import { useReadLocalStorage } from "usehooks-ts";
@@ -27,8 +27,8 @@ export function Home({ className, ...restProps }: HomePropsType) {
       )}
       {...restProps}
     >
+      <Chess />
       <VideoPlayers className="w-1/5" userName={userName as string} />
-      <Game />
     </div>
   );
 }

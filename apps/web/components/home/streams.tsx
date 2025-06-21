@@ -10,15 +10,18 @@ import { SOCKET_EVENTS } from "@socket/events";
 import { Button } from "@konekt/ui/button";
 import { cn } from "@konekt/ui/utils";
 import { VideoPlayer } from "./video-player";
+import { useBaseContext } from "contexts/base";
 
-type VideoPlayersPropsType = ComponentProps<"div"> & { userName: string };
+type VideoPlayersPropsType = ComponentProps<"div"> & {
+  userName: string;
+};
 
 export function VideoPlayers({
   userName,
   className,
   ...restProps
 }: VideoPlayersPropsType) {
-  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const { peerConnectionRef } = useBaseContext();
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
 
@@ -31,11 +34,15 @@ export function VideoPlayers({
   }>({});
 
   useEffect(() => {
-    peerConnectionRef.current = new RTCPeerConnection();
-    const peerConnection = peerConnectionRef.current;
+    const peerConnectionInstance = peerConnectionRef.current.peerConnection;
+
+    if (!peerConnectionInstance) {
+      console.error("Peer connection is not initialized.");
+      return;
+    }
 
     // Handle ICE candidates
-    peerConnection.onicecandidate = (event) => {
+    peerConnectionInstance.onicecandidate = (event) => {
       if (event.candidate) {
         console.log("New ICE candidate:", event.candidate);
         socket.emit(SOCKET_EVENTS.CANDIDATE, { candidate: event.candidate });
@@ -43,7 +50,7 @@ export function VideoPlayers({
     };
 
     // Handle remote stream
-    peerConnection.ontrack = (event) => {
+    peerConnectionInstance.ontrack = (event) => {
       const remoteVideo = remoteVideoRef.current;
       if (remoteVideo) {
         if (event.streams[0]) remoteVideo.srcObject = event.streams[0];
@@ -53,8 +60,8 @@ export function VideoPlayers({
     };
 
     return () => {
-      peerConnection.close();
-      peerConnectionRef.current = null;
+      peerConnectionInstance.close();
+      peerConnectionRef.current.peerConnection = null;
     };
   }, []);
 
@@ -73,7 +80,7 @@ export function VideoPlayers({
       .then((stream) => {
         localVideo.srcObject = stream;
         localVideo.play();
-        const peerConnection = peerConnectionRef.current;
+        const peerConnection = peerConnectionRef.current.peerConnection;
         if (peerConnection) {
           stream.getTracks().forEach((track) => {
             peerConnection.addTrack(track, stream);
@@ -89,7 +96,7 @@ export function VideoPlayers({
     const handleAnswer = (data: any) => {
       console.log("Answer received:", data);
       if (data.answer.type === "answer") {
-        const peerConnection = peerConnectionRef.current;
+        const peerConnection = peerConnectionRef.current.peerConnection;
         if (peerConnection) {
           console.log("Setting remote description with answer:", data.answer);
           peerConnection.setRemoteDescription(
@@ -100,7 +107,7 @@ export function VideoPlayers({
     };
 
     const handleCallReceived = async (data: any) => {
-      const peerConnection = peerConnectionRef.current;
+      const peerConnection = peerConnectionRef.current.peerConnection;
       if (!peerConnection) return;
       console.log("Call received:", data);
       setConnectionState("calling");
@@ -118,7 +125,7 @@ export function VideoPlayers({
 
     const handleCandidateReceived = (data: any) => {
       console.log("Candidate received:", data);
-      const peerConnection = peerConnectionRef.current;
+      const peerConnection = peerConnectionRef.current.peerConnection;
       if (peerConnection && data.candidate) {
         peerConnection
           .addIceCandidate(new RTCIceCandidate(data.candidate))
@@ -176,13 +183,15 @@ export function VideoPlayers({
   }, []);
 
   const handleStartCall = useCallback(async () => {
-    const peerConnection = peerConnectionRef.current;
+    const peerConnection = peerConnectionRef.current.peerConnection;
     if (!peerConnection) return;
 
     console.log("Starting call...");
     setConnectionState("calling");
 
     const localOffer = await peerConnection.createOffer();
+    peerConnectionRef.current.isInitiator = true;
+    console.log("Local offer created:", localOffer);
     await peerConnection.setLocalDescription(localOffer);
     socket.emit(SOCKET_EVENTS.CALL, { offer: localOffer });
   }, []);
@@ -244,13 +253,16 @@ export function VideoPlayers({
   const buttonConfig = getButtonConfig();
 
   return (
-    <div className={cn("space-y-4 w-full bg-white", className)} {...restProps}>
+    <div
+      className={cn("space-y-4 w-full flex flex-col", className)}
+      {...restProps}
+    >
       <div className="space-y-4">
         <VideoPlayer ref={localVideoRef} userName={userName} />
         <VideoPlayer ref={remoteVideoRef} />
       </div>
 
-      <div className="text-center text-sm text-gray-600 min-h-[20px]">
+      <div className="text-center text-sm min-h-[20px]">
         {connectionState === "idle" && "Find a match!"}
         {connectionState === "waiting" &&
           "Looking for someone to connect with..."}
@@ -261,7 +273,7 @@ export function VideoPlayers({
       </div>
 
       <Button
-        className="mx-auto"
+        className=""
         onClick={buttonConfig.action}
         disabled={buttonConfig.disabled}
         variant={buttonConfig.variant}
