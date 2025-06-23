@@ -24,6 +24,7 @@ export function VideoPlayers({
   const { manager, init } = usePeerConnection();
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const [opponentUserName, setOpponentUserName] = useState<string>("");
 
   const [connectionState, setConnectionState] = useState<
     "idle" | "waiting" | "matched" | "calling" | "connected"
@@ -35,7 +36,6 @@ export function VideoPlayers({
 
   useEffect(() => {
     function handleTrack(event: RTCTrackEvent) {
-      console.log("Track received:", event);
       const remoteVideo = remoteVideoRef.current;
       if (remoteVideo && event.streams[0] && event.streams.length > 0) {
         // Set the remote video stream to the video element
@@ -46,14 +46,14 @@ export function VideoPlayers({
     function handleConnectionStateChange(
       connectionState: RTCPeerConnectionState
     ) {
-      console.log("Connection state changed:", connectionState);
       if (connectionState === "connected") {
         setConnectionState("connected");
       }
     }
 
-    function handleUserReceived(data: { user: { id: string; name: string } }) {
-      console.log("User received:", data.user);
+    function handleUserReceived(data: { user: { userName: string } }) {
+      console.log("DD:: User received:", data.user);
+      setOpponentUserName(data.user.userName);
       setConnectionState("matched");
     }
 
@@ -107,7 +107,6 @@ export function VideoPlayers({
     const handleRoomCreated = (data: { roomId: string; users: string[] }) => {
       const otherUser = data.users.find((id) => id !== socket.id);
       const isPolite = (socket.id ? socket.id : "") > (otherUser ?? "");
-
       init(isPolite);
 
       setRoomInfo({
@@ -139,13 +138,13 @@ export function VideoPlayers({
       socket.off(SOCKET_EVENTS.ROOM_MATE_LEFT, handleRoomMateLeft);
       socket.off(SOCKET_EVENTS.CANDIDATE, handleCandidateReceived);
     };
-  }, [manager]);
+  }, [init, manager]);
 
   const handleFindMatch = useCallback(() => {
     console.log("Joining queue...");
     setConnectionState("waiting");
-    socket.emit(SOCKET_EVENTS.JOIN_QUEUE);
-  }, []);
+    socket.emit(SOCKET_EVENTS.JOIN_QUEUE, { userName });
+  }, [userName]);
 
   const handleStartCall = useCallback(async () => {
     console.log("Starting call...");
@@ -216,7 +215,7 @@ export function VideoPlayers({
     >
       <div className="space-y-4">
         <VideoPlayer ref={localVideoRef} userName={userName} />
-        <VideoPlayer ref={remoteVideoRef} />
+        <VideoPlayer ref={remoteVideoRef} userName={opponentUserName} />
       </div>
 
       <div className="text-center text-sm min-h-[20px]">

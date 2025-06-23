@@ -22,10 +22,10 @@ export function initializeSocket(httpServer: HTTPServer) {
     const stats = roomManager.getStats();
     console.log(`Current stats: ${JSON.stringify(stats)}`);
 
-    socket.on(SOCKET_EVENTS.JOIN_QUEUE, () => {
-      console.log(`User ${socket.id} wants to join queue`);
+    socket.on(SOCKET_EVENTS.JOIN_QUEUE, ({ userName }) => {
+      console.log(`User ${socket.id} wants to join queue`, userName);
 
-      roomManager.addUserToQueue(socket.id);
+      roomManager.addUserToQueue(socket.id, userName);
 
       socket.emit(SOCKET_EVENTS.WAITING_FOR_MATCH);
 

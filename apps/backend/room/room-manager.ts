@@ -12,21 +12,24 @@ export class RoomManager {
   }
 
   // Add user to waiting queue for matchmaking
-  addUserToQueue(socketId: string): void {
+  addUserToQueue(socketId: string, userName: string): void {
     // Create a new user object with their info
     const user: User = {
       socketId,
-      status: 'waiting',
-      joinedAt: new Date()
+      userName,
+      status: "waiting",
+      joinedAt: new Date(),
     };
-    
+
     // Store the user in our users database
     this.users.set(socketId, user);
-    
+
     // Add them to the end of the waiting queue
     this.waitingQueue.push(socketId);
-    
-    console.log(`User ${socketId} added to waiting queue. Queue length: ${this.waitingQueue.length}`);
+
+    console.log(
+      `User ${socketId} added to waiting queue. Queue length: ${this.waitingQueue.length}`
+    );
   }
 
   // Try to match users and create a room (returns room info if successful)
@@ -46,7 +49,7 @@ export class RoomManager {
       id: roomId,
       users: [user1Id, user2Id],
       createdAt: new Date(),
-      status: 'active'
+      status: "active",
     };
 
     // Store the room in our rooms database
@@ -55,23 +58,25 @@ export class RoomManager {
     // Update both users' status - they're no longer waiting, they're in a room
     const user1 = this.users.get(user1Id)!;
     const user2 = this.users.get(user2Id)!;
-    
+
     user1.roomId = roomId;
-    user1.status = 'in-room';
+    user1.status = "in-room";
     user2.roomId = roomId;
-    user2.status = 'in-room';
+    user2.status = "in-room";
 
     console.log(`Room ${roomId} created with users: ${user1Id}, ${user2Id}`);
-    
+
     // Return the room info so the server can notify the users
     return {
       roomId,
-      users: [user1Id, user2Id]
+      users: [user1Id, user2Id],
     };
   }
 
   // Remove user from system when they disconnect or leave
-  removeUser(socketId: string): { roomId?: string; otherUserId?: string } | null {
+  removeUser(
+    socketId: string
+  ): { roomId?: string; otherUserId?: string } | null {
     const user = this.users.get(socketId);
     if (!user) return null; // User doesn't exist
 
@@ -89,14 +94,14 @@ export class RoomManager {
       const room = this.rooms.get(user.roomId);
       if (room) {
         // Find the other user in the room
-        const otherUserId = room.users.find(id => id !== socketId);
-        
+        const otherUserId = room.users.find((id) => id !== socketId);
+
         if (otherUserId) {
           // Update other user's status - put them back in queue
           const otherUser = this.users.get(otherUserId);
           if (otherUser) {
-            otherUser.roomId = undefined;  // No longer in a room
-            otherUser.status = 'waiting';  // Back to waiting
+            otherUser.roomId = undefined; // No longer in a room
+            otherUser.status = "waiting"; // Back to waiting
             // Put them back in the queue for a new match
             this.waitingQueue.push(otherUserId);
           }
@@ -104,11 +109,13 @@ export class RoomManager {
 
         // Delete the room since someone left
         this.rooms.delete(user.roomId);
-        console.log(`Room ${user.roomId} deleted due to user ${socketId} leaving`);
-        
+        console.log(
+          `Room ${user.roomId} deleted due to user ${socketId} leaving`
+        );
+
         result = {
           roomId: user.roomId,
-          otherUserId
+          otherUserId,
         };
       }
     }
@@ -116,7 +123,7 @@ export class RoomManager {
     // Remove user completely from the system
     this.users.delete(socketId);
     console.log(`User ${socketId} completely removed from system`);
-    
+
     return result; // Return info about what was cleaned up
   }
 
@@ -139,15 +146,19 @@ export class RoomManager {
     if (!room) return null; // Room doesn't exist
 
     // Find the other user in the room (not the current user)
-    return room.users.find(id => id !== socketId) || null;
+    return room.users.find((id) => id !== socketId) || null;
   }
 
   // Get system statistics for monitoring
-  getStats(): { totalUsers: number; waitingUsers: number; activeRooms: number } {
+  getStats(): {
+    totalUsers: number;
+    waitingUsers: number;
+    activeRooms: number;
+  } {
     return {
-      totalUsers: this.users.size,        // How many users total
-      waitingUsers: this.waitingQueue.length,  // How many waiting for match
-      activeRooms: this.rooms.size        // How many active rooms
+      totalUsers: this.users.size, // How many users total
+      waitingUsers: this.waitingQueue.length, // How many waiting for match
+      activeRooms: this.rooms.size, // How many active rooms
     };
   }
 }

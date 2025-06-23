@@ -6,7 +6,7 @@ type EventEmitterEvents = {
   iceCandidate: RTCPeerConnectionIceEvent;
   track: RTCTrackEvent;
   connectionstatechange: RTCPeerConnectionState;
-  onUserReceived: { user: { id: string; name: string } };
+  onUserReceived: { user: { userName: string } };
 };
 
 export class PeerConnectionManager {
@@ -73,7 +73,7 @@ export class PeerConnectionManager {
 
   private handleCallReceived = async (data: {
     offer: RTCSessionDescriptionInit;
-    user: { id: string; name: string };
+    from: { userName: string };
   }) => {
     const offer = data.offer;
     const offerCollision =
@@ -84,7 +84,7 @@ export class PeerConnectionManager {
       console.warn("Ignored offer due to glare handling.");
       return;
     }
-
+    console.log("DD:: Call received:", data.from);
     try {
       await this.peerConnection!.setRemoteDescription(
         new RTCSessionDescription(offer)
@@ -92,7 +92,7 @@ export class PeerConnectionManager {
       const answer = await this.peerConnection!.createAnswer();
       await this.peerConnection!.setLocalDescription(answer);
       this.socket.emit(SOCKET_EVENTS.ANSWER, { answer });
-      this.eventEmitter.emit("onUserReceived", { user: data.user });
+      this.eventEmitter.emit("onUserReceived", { user: data.from });
     } catch (error) {
       console.error("Error handling remote offer:", error);
     }
@@ -100,13 +100,13 @@ export class PeerConnectionManager {
 
   private handleAnswer = async (data: {
     answer: RTCSessionDescriptionInit;
-    user: { id: string; name: string };
+    from: { userName: string };
   }) => {
     try {
       await this.peerConnection!.setRemoteDescription(
         new RTCSessionDescription(data.answer)
       );
-      this.eventEmitter.emit("onUserReceived", { user: data.user });
+      this.eventEmitter.emit("onUserReceived", { user: data.from });
     } catch (error) {
       console.error("Error setting remote answer:", error);
     }
