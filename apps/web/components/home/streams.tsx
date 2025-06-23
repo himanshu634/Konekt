@@ -10,7 +10,7 @@ import { SOCKET_EVENTS } from "@socket/events";
 import { Button } from "@konekt/ui/button";
 import { cn } from "@konekt/ui/utils";
 import { VideoPlayer } from "./video-player";
-import { useBaseContext } from "contexts/base";
+import { usePeerConnection } from "peer-connection/use-peer-connection";
 
 type VideoPlayersPropsType = ComponentProps<"div"> & {
   userName: string;
@@ -21,7 +21,7 @@ export function VideoPlayers({
   className,
   ...restProps
 }: VideoPlayersPropsType) {
-  const { peerConnectionRef } = useBaseContext();
+  const { manager } = usePeerConnection();
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
 
@@ -34,37 +34,33 @@ export function VideoPlayers({
   }>({});
 
   useEffect(() => {
-    const peerConnectionInstance = peerConnectionRef.current.peerConnection;
-
-    if (!peerConnectionInstance) {
-      console.error("Peer connection is not initialized.");
-      return;
-    }
-
-    // Handle ICE candidates
-    peerConnectionInstance.onicecandidate = (event) => {
-      if (event.candidate) {
-        console.log("New ICE candidate:", event.candidate);
-        socket.emit(SOCKET_EVENTS.CANDIDATE, { candidate: event.candidate });
-      }
-    };
-
-    // Handle remote stream
-    peerConnectionInstance.ontrack = (event) => {
+    function handleTrack(event: RTCTrackEvent) {
+      console.log("Track received:", event);
       const remoteVideo = remoteVideoRef.current;
-      if (remoteVideo) {
-        if (event.streams[0]) remoteVideo.srcObject = event.streams[0];
+      if (remoteVideo && event.streams[0] && event.streams.length > 0) {
+        // Set the remote video stream to the video element
+        remoteVideo.srcObject = event.streams[0];
         remoteVideo.play();
+      }
+    }
+    function handleConnectionStateChange(
+      connectionState: RTCPeerConnectionState
+    ) {
+      console.log("Connection state changed:", connectionState);
+      if (connectionState === "connected") {
         setConnectionState("connected");
       }
-    };
-
+    }
+    manager.on("track", handleTrack);
+    manager.on("connectionstatechange", handleConnectionStateChange);
     return () => {
-      peerConnectionInstance.close();
-      peerConnectionRef.current.peerConnection = null;
+      manager.off("track", handleTrack);
+      manager.off("connectionstatechange", handleConnectionStateChange);
+      manager.destroy();
     };
-  }, []);
+  }, [manager]);
 
+  // Initialize local video stream
   useEffect(() => {
     const localVideo = localVideoRef.current;
 
@@ -77,61 +73,21 @@ export function VideoPlayers({
 
     navigator.mediaDevices
       .getUserMedia(constraints)
-      .then((stream) => {
-        localVideo.srcObject = stream;
+      .then((streams) => {
+        localVideo.srcObject = streams;
         localVideo.play();
-        const peerConnection = peerConnectionRef.current.peerConnection;
-        if (peerConnection) {
-          stream.getTracks().forEach((track) => {
-            peerConnection.addTrack(track, stream);
-          });
-        }
+        manager.addTracks([streams]);
       })
       .catch((error) => {
         console.error("Error accessing media devices.", error);
       });
-  }, []);
+  }, [manager]);
 
   useEffect(() => {
-    const handleAnswer = (data: any) => {
-      console.log("Answer received:", data);
-      if (data.answer.type === "answer") {
-        const peerConnection = peerConnectionRef.current.peerConnection;
-        if (peerConnection) {
-          console.log("Setting remote description with answer:", data.answer);
-          peerConnection.setRemoteDescription(
-            new RTCSessionDescription(data.answer)
-          );
-        }
-      }
-    };
-
-    const handleCallReceived = async (data: any) => {
-      const peerConnection = peerConnectionRef.current.peerConnection;
-      if (!peerConnection) return;
-      console.log("Call received:", data);
-      setConnectionState("calling");
-
-      if (data.offer.type === "offer") {
-        await peerConnection.setRemoteDescription(
-          new RTCSessionDescription(data.offer)
-        );
-
-        const answer = await peerConnection.createAnswer();
-        await peerConnection.setLocalDescription(answer);
-        socket.emit(SOCKET_EVENTS.ANSWER, { answer });
-      }
-    };
-
-    const handleCandidateReceived = (data: any) => {
+    const handleCandidateReceived = (data: { candidate: RTCIceCandidate }) => {
       console.log("Candidate received:", data);
-      const peerConnection = peerConnectionRef.current.peerConnection;
-      if (peerConnection && data.candidate) {
-        peerConnection
-          .addIceCandidate(new RTCIceCandidate(data.candidate))
-          .catch((error) => {
-            console.error("Error adding ICE candidate:", error);
-          });
+      if (data.candidate) {
+        manager.addIceCandidate(data.candidate);
       }
     };
 
@@ -140,7 +96,7 @@ export function VideoPlayers({
       setConnectionState("waiting");
     };
 
-    const handleRoomCreated = (data: any) => {
+    const handleRoomCreated = (data: { roomId: string; users: string[] }) => {
       setConnectionState("matched");
       setRoomInfo({
         roomId: data.roomId,
@@ -148,7 +104,7 @@ export function VideoPlayers({
       });
     };
 
-    const handleRoomMateLeft = (data: any) => {
+    const handleRoomMateLeft = () => {
       setConnectionState("waiting");
       setRoomInfo({});
 
@@ -159,22 +115,17 @@ export function VideoPlayers({
       }
     };
 
-    socket.on(SOCKET_EVENTS.ANSWER, handleAnswer);
-    socket.on(SOCKET_EVENTS.CALL_RECEIVED, handleCallReceived);
-    socket.on(SOCKET_EVENTS.CANDIDATE, handleCandidateReceived);
     socket.on(SOCKET_EVENTS.WAITING_FOR_MATCH, handleWaitingForMatch);
     socket.on(SOCKET_EVENTS.ROOM_CREATED, handleRoomCreated);
     socket.on(SOCKET_EVENTS.ROOM_MATE_LEFT, handleRoomMateLeft);
-
+    socket.on(SOCKET_EVENTS.CANDIDATE, handleCandidateReceived);
     return () => {
-      socket.off(SOCKET_EVENTS.ANSWER, handleAnswer);
-      socket.off(SOCKET_EVENTS.CALL_RECEIVED, handleCallReceived);
-      socket.off(SOCKET_EVENTS.CANDIDATE, handleCandidateReceived);
       socket.off(SOCKET_EVENTS.WAITING_FOR_MATCH, handleWaitingForMatch);
       socket.off(SOCKET_EVENTS.ROOM_CREATED, handleRoomCreated);
       socket.off(SOCKET_EVENTS.ROOM_MATE_LEFT, handleRoomMateLeft);
+      socket.off(SOCKET_EVENTS.CANDIDATE, handleCandidateReceived);
     };
-  }, []);
+  }, [manager]);
 
   const handleFindMatch = useCallback(() => {
     console.log("Joining queue...");
@@ -183,18 +134,10 @@ export function VideoPlayers({
   }, []);
 
   const handleStartCall = useCallback(async () => {
-    const peerConnection = peerConnectionRef.current.peerConnection;
-    if (!peerConnection) return;
-
     console.log("Starting call...");
     setConnectionState("calling");
-
-    const localOffer = await peerConnection.createOffer();
-    peerConnectionRef.current.isInitiator = true;
-    console.log("Local offer created:", localOffer);
-    await peerConnection.setLocalDescription(localOffer);
-    socket.emit(SOCKET_EVENTS.CALL, { offer: localOffer });
-  }, []);
+    await manager.call();
+  }, [manager]);
 
   const handleLeaveQueue = useCallback(() => {
     console.log("Leaving queue...");
@@ -273,7 +216,6 @@ export function VideoPlayers({
       </div>
 
       <Button
-        className=""
         onClick={buttonConfig.action}
         disabled={buttonConfig.disabled}
         variant={buttonConfig.variant}

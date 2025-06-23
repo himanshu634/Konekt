@@ -1,11 +1,10 @@
 import { cn } from "@konekt/ui/utils";
 import { Chessboard } from "react-chessboard";
 import { useWindowSize } from "usehooks-ts";
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback } from "react";
 import { Chess as ChessEngine } from "chess.js";
 import { toast } from "sonner";
 import { TurnIndicator } from "./turn-indicator";
-import { useBaseContext } from "contexts/base";
 
 // Types for move tracking
 type Move = {
@@ -28,8 +27,7 @@ type GameState = {
 
 export function Chess() {
   const { height, width } = useWindowSize();
-  const { peerConnectionRef } = useBaseContext();
-  const dataChannelRef = useRef<RTCDataChannel | null>(null);
+  // const dataChannelRef = useRef<RTCDataChannel | null>(null);
 
   // Initialize chess game
   const [game] = useState(() => new ChessEngine());
@@ -41,47 +39,47 @@ export function Chess() {
     isGameOver: false,
   });
 
-  useEffect(() => {
-    const peerConnection = peerConnectionRef.current.peerConnection;
-    const isInitiator = peerConnectionRef.current.isInitiator;
-    console.log("Peer connection:", peerConnection, isInitiator);
-    if (!peerConnection) {
-      console.error("Peer connection is not initialized.");
-      return;
-    }
+  // useEffect(() => {
+  //   const peerConnection = peerConnectionRef.current.peerConnection;
+  //   const isInitiator = peerConnectionRef.current.isInitiator;
+  //   console.log("Peer connection:", peerConnection, isInitiator);
+  //   if (!peerConnection) {
+  //     console.error("Peer connection is not initialized.");
+  //     return;
+  //   }
 
-    function handleMessage(event: MessageEvent) {
-      console.log("Message received:", event.data);
-      // const data = JSON.parse(event.data);
-      // if (data.type === "move") {
-      //   handlePieceDrop(data.from, data.to, data.piece);
-      // } else if (data.type === "gameState") {
-      //   setGameState(data.gameState);
-      //   setGamePosition(data.gameState.currentPosition);
-      // }
-    }
+  //   function handleMessage(event: MessageEvent) {
+  //     console.log("Message received:", event.data);
+  //     // const data = JSON.parse(event.data);
+  //     // if (data.type === "move") {
+  //     //   handlePieceDrop(data.from, data.to, data.piece);
+  //     // } else if (data.type === "gameState") {
+  //     //   setGameState(data.gameState);
+  //     //   setGamePosition(data.gameState.currentPosition);
+  //     // }
+  //   }
 
-    if (isInitiator) {
-      // Create a data channel if this peer is the initiator
-      console.log("Creating data channel as initiator");
-      const dataChannel = peerConnection.createDataChannel("chess");
+  //   if (isInitiator) {
+  //     // Create a data channel if this peer is the initiator
+  //     console.log("Creating data channel as initiator");
+  //     const dataChannel = peerConnection.createDataChannel("chess");
 
-      dataChannel.onopen = (event) => {
-        console.log("Data channel opened:", event);
-        dataChannelRef.current = dataChannel;
-      };
+  //     dataChannel.onopen = (event) => {
+  //       console.log("Data channel opened:", event);
+  //       dataChannelRef.current = dataChannel;
+  //     };
 
-      dataChannel.onmessage = handleMessage;
-    }
-    peerConnection.ondatachannel = (event) => {
-      const receivedChannel = event.channel;
-      // Set up the received data channel
-      dataChannelRef.current = receivedChannel;
-      console.log("Data channel received:", event.channel);
+  //     dataChannel.onmessage = handleMessage;
+  //   }
+  //   peerConnection.ondatachannel = (event) => {
+  //     const receivedChannel = event.channel;
+  //     // Set up the received data channel
+  //     dataChannelRef.current = receivedChannel;
+  //     console.log("Data channel received:", event.channel);
 
-      receivedChannel.onmessage = handleMessage;
-    };
-  }, []);
+  //     receivedChannel.onmessage = handleMessage;
+  //   };
+  // }, []);
 
   // Helper function to get the current game result
   const getCurrentGameResult = useCallback((gameInstance: ChessEngine) => {
