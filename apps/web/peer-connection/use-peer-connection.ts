@@ -4,9 +4,12 @@ import { PeerConnectionManager } from "peer-connection/manager";
 import { useRef } from "react";
 
 export function usePeerConnection() {
-  const managerRef = useRef<PeerConnectionManager>(
-    new PeerConnectionManager({ socket: socket })
-  );
+  const managerRef = useRef<PeerConnectionManager | null>(null);
 
-  return { manager: managerRef.current };
+  const init = (isPolite: boolean) => {
+    managerRef.current = new PeerConnectionManager({ socket, isPolite });
+    return managerRef.current;
+  };
+
+  return { manager: managerRef.current, init };
 }

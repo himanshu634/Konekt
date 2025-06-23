@@ -21,7 +21,7 @@ export function VideoPlayers({
   className,
   ...restProps
 }: VideoPlayersPropsType) {
-  const { manager } = usePeerConnection();
+  const { manager, init } = usePeerConnection();
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
 
@@ -51,12 +51,20 @@ export function VideoPlayers({
         setConnectionState("connected");
       }
     }
-    manager.on("track", handleTrack);
-    manager.on("connectionstatechange", handleConnectionStateChange);
+
+    function handleUserReceived(data: { user: { id: string; name: string } }) {
+      console.log("User received:", data.user);
+      setConnectionState("matched");
+    }
+
+    manager?.on("track", handleTrack);
+    manager?.on("connectionstatechange", handleConnectionStateChange);
+    manager?.on("onUserReceived", handleUserReceived);
     return () => {
-      manager.off("track", handleTrack);
-      manager.off("connectionstatechange", handleConnectionStateChange);
-      manager.destroy();
+      manager?.off("track", handleTrack);
+      manager?.off("connectionstatechange", handleConnectionStateChange);
+      manager?.off("onUserReceived", handleUserReceived);
+      manager?.destroy();
     };
   }, [manager]);
 
@@ -76,7 +84,7 @@ export function VideoPlayers({
       .then((streams) => {
         localVideo.srcObject = streams;
         localVideo.play();
-        manager.addTracks([streams]);
+        manager?.addTracks([streams]);
       })
       .catch((error) => {
         console.error("Error accessing media devices.", error);
@@ -87,7 +95,7 @@ export function VideoPlayers({
     const handleCandidateReceived = (data: { candidate: RTCIceCandidate }) => {
       console.log("Candidate received:", data);
       if (data.candidate) {
-        manager.addIceCandidate(data.candidate);
+        manager?.addIceCandidate(data.candidate);
       }
     };
 
@@ -97,11 +105,17 @@ export function VideoPlayers({
     };
 
     const handleRoomCreated = (data: { roomId: string; users: string[] }) => {
-      setConnectionState("matched");
+      const otherUser = data.users.find((id) => id !== socket.id);
+      const isPolite = (socket.id ? socket.id : "") > (otherUser ?? "");
+
+      init(isPolite);
+
       setRoomInfo({
         roomId: data.roomId,
-        otherUser: data.users.find((id: string) => id !== socket.id),
+        otherUser,
       });
+
+      setConnectionState("matched");
     };
 
     const handleRoomMateLeft = () => {
@@ -136,7 +150,7 @@ export function VideoPlayers({
   const handleStartCall = useCallback(async () => {
     console.log("Starting call...");
     setConnectionState("calling");
-    await manager.call();
+    await manager?.call();
   }, [manager]);
 
   const handleLeaveQueue = useCallback(() => {
