@@ -52,7 +52,6 @@ export function VideoPlayers({
     }
 
     function handleUserReceived(data: { user: { userName: string } }) {
-      console.log("DD:: User received:", data.user);
       setOpponentUserName(data.user.userName);
       setConnectionState("matched");
     }
@@ -93,7 +92,6 @@ export function VideoPlayers({
 
   useEffect(() => {
     const handleCandidateReceived = (data: { candidate: RTCIceCandidate }) => {
-      console.log("Candidate received:", data);
       if (data.candidate) {
         manager?.addIceCandidate(data.candidate);
       }
@@ -141,19 +139,16 @@ export function VideoPlayers({
   }, [init, manager]);
 
   const handleFindMatch = useCallback(() => {
-    console.log("Joining queue...");
     setConnectionState("waiting");
     socket.emit(SOCKET_EVENTS.JOIN_QUEUE, { userName });
   }, [userName]);
 
   const handleStartCall = useCallback(async () => {
-    console.log("Starting call...");
     setConnectionState("calling");
     await manager?.call();
   }, [manager]);
 
   const handleLeaveQueue = useCallback(() => {
-    console.log("Leaving queue...");
     setConnectionState("idle");
     setRoomInfo({});
     socket.emit(SOCKET_EVENTS.LEAVE_QUEUE);

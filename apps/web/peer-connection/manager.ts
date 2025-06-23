@@ -84,7 +84,6 @@ export class PeerConnectionManager {
       console.warn("Ignored offer due to glare handling.");
       return;
     }
-    console.log("DD:: Call received:", data.from);
     try {
       await this.peerConnection!.setRemoteDescription(
         new RTCSessionDescription(offer)
