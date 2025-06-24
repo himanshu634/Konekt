@@ -26,14 +26,88 @@ type GameState = {
   result?: string;
 };
 
+// Helper function to get the current game result
+const getCurrentGameResult = (gameInstance: ChessEngine) => {
+  if (gameInstance.isCheckmate()) {
+    return gameInstance.turn() === "w"
+      ? "Black wins by checkmate"
+      : "White wins by checkmate";
+  } else if (gameInstance.isDraw()) {
+    if (gameInstance.isStalemate()) return "Draw by stalemate";
+    if (gameInstance.isInsufficientMaterial())
+      return "Draw by insufficient material";
+    if (gameInstance.isThreefoldRepetition())
+      return "Draw by threefold repetition";
+    if (gameInstance.isDraw()) return "Draw by 50-move rule";
+    return "Draw";
+  }
+  return undefined;
+};
+
+// Helper to apply a move and update state
+function applyMove({
+  moveData,
+  game,
+  prevMoves = [],
+  onStateUpdate,
+  onPositionUpdate,
+}: {
+  moveData: Move;
+  game: ChessEngine;
+  prevMoves?: Move[];
+  onStateUpdate: (newState: GameState) => void;
+  onPositionUpdate: (fen: string) => void;
+}) {
+  // Make the move on the local board
+  const move = game.move({
+    from: moveData.from,
+    to: moveData.to,
+    promotion: moveData.promotion,
+  });
+  if (move) {
+    // Create move record if not present (for local moves)
+    const moveRecord: Move = {
+      from: moveData.from,
+      to: moveData.to,
+      piece: move.piece,
+      captured: move.captured,
+      promotion: move.promotion,
+      timestamp: moveData.timestamp ? new Date(moveData.timestamp) : new Date(),
+      san: move.san,
+    };
+    const newMoves = [...prevMoves, moveRecord];
+    const newState: GameState = {
+      moves: newMoves,
+      currentPosition: game.fen(),
+      turn: game.turn(),
+      isGameOver: game.isGameOver(),
+      result: game.isGameOver() ? getCurrentGameResult(game) : undefined,
+    };
+    onStateUpdate(newState);
+    onPositionUpdate(game.fen());
+    return { success: true, moveRecord };
+  } else {
+    return { success: false };
+  }
+}
+
+// Helper to check if a move is valid and return move details
+function validateMove({
+  game,
+  moveData,
+}: {
+  game: ChessEngine;
+  moveData: Move;
+}) {
+  // Create a copy of the game to test the move
+  const gameCopy = new ChessEngine(game.fen());
+  const move = gameCopy.move(moveData);
+  return { isValid: !!move, move };
+}
+
 export function Chess() {
   const { height, width } = useWindowSize();
   const { manager } = usePeerConnection();
-
-  useEffect(() => {
-    console.log("Peer connection manager:", manager);
-  }, [manager]);
-
   // Initialize chess game
   const [game] = useState(() => new ChessEngine());
   const [gamePosition, setGamePosition] = useState(game.fen());
@@ -44,95 +118,101 @@ export function Chess() {
     isGameOver: false,
   });
 
-  // Helper function to get the current game result
-  const getCurrentGameResult = useCallback((gameInstance: ChessEngine) => {
-    if (gameInstance.isCheckmate()) {
-      return gameInstance.turn() === "w"
-        ? "Black wins by checkmate"
-        : "White wins by checkmate";
-    } else if (gameInstance.isDraw()) {
-      if (gameInstance.isStalemate()) return "Draw by stalemate";
-      if (gameInstance.isInsufficientMaterial())
-        return "Draw by insufficient material";
-      if (gameInstance.isThreefoldRepetition())
-        return "Draw by threefold repetition";
-      if (gameInstance.isDraw()) return "Draw by 50-move rule";
-      return "Draw";
+  useEffect(() => {
+    console.log("Peer connection manager:", manager);
+    if (!manager) return;
+
+    function handleConnectionEstablished() {
+      manager?.initiateChessDataChannel();
     }
-    return undefined;
-  }, []);
+
+    function handleChessDataChannelMessage(data: { data: string }) {
+      console.log("Received chess data:", data);
+      try {
+        const receivedData = JSON.parse(data.data);
+        if (receivedData.type === "move") {
+          // Apply the move from the other player
+          const moveData: Move = receivedData.move;
+          console.log("Processing received move:", moveData);
+
+          const result = applyMove({
+            moveData,
+            game,
+            prevMoves: gameState.moves,
+            onStateUpdate: setGameState,
+            onPositionUpdate: setGamePosition,
+          });
+
+          if (!result.success) {
+            console.error("Invalid received move:", moveData);
+          }
+        }
+      } catch (error) {
+        console.error("Error processing received chess data:", error);
+      }
+    }
+
+    // manager.on("onChessDataChannelOpen", handleChessDataChannelOpen);
+    manager.on("connectionEstablished", handleConnectionEstablished);
+    manager.on("onChessDataChannelMessage", handleChessDataChannelMessage);
+
+    return () => {
+      // manager.off("onChessDataChannelOpen", handleChessDataChannelOpen);
+      manager.off("connectionEstablished", handleConnectionEstablished);
+      manager.off("onChessDataChannelMessage", handleChessDataChannelMessage);
+    };
+  }, [manager, game, gameState.moves]);
 
   // Track piece movements
   const handlePieceDrop = useCallback(
     (sourceSquare: string, targetSquare: string, piece: string) => {
-      // Check if game is already over
       if (gameState.isGameOver) {
         toast.error("Game is over! No more moves allowed.");
         return false;
       }
-
       try {
-        const gameCopy = new ChessEngine(game.fen());
-        // Attempt to make the move
-        const move = gameCopy.move({
+        const moveData: Move = {
           from: sourceSquare,
           to: targetSquare,
-          promotion: piece[1]?.toLowerCase() ?? "q", // Default to queen promotion
-        });
-
-        // If move is invalid, chess.js will throw an error
-        if (!move) {
+          piece: piece[1]?.toLowerCase() ?? "q", // Will be overwritten by chess.js
+          promotion: piece[1]?.toLowerCase() ?? "q",
+          timestamp: new Date(),
+          san: "", // Will be overwritten by chess.js
+        };
+        // Validate move using validateMove helper
+        const { isValid, move } = validateMove({ game, moveData });
+        if (!isValid || !move) {
           console.log(
             `Invalid move: ${piece} from ${sourceSquare} to ${targetSquare}`
           );
           toast.error("Invalid move! Please try a different move.");
           return false;
         }
-
-        // Update the actual game state
-        game.move({
-          from: sourceSquare,
-          to: targetSquare,
-          promotion: piece[1]?.toLowerCase() ?? "q",
+        // Apply move
+        const result = applyMove({
+          moveData: {
+            ...moveData,
+            piece: move.piece,
+            captured: move.captured,
+            promotion: move.promotion,
+            san: move.san,
+            timestamp: new Date(),
+          },
+          game,
+          prevMoves: gameState.moves,
+          onStateUpdate: setGameState,
+          onPositionUpdate: setGamePosition,
         });
-
-        // Create move record
-        const moveRecord: Move = {
-          from: sourceSquare,
-          to: targetSquare,
-          piece: move.piece,
-          captured: move.captured,
-          promotion: move.promotion,
-          timestamp: new Date(),
-          san: move.san,
-        };
-
-        // Update game state
-        const newGameState: GameState = {
-          moves: [...gameState.moves, moveRecord],
-          currentPosition: game.fen(),
-          turn: game.turn(),
-          isGameOver: game.isGameOver(),
-          result: game.isGameOver() ? getCurrentGameResult(game) : undefined,
-        };
-
-        setGameState(newGameState);
-        setGamePosition(game.fen());
-
-        // Log the move details
-        console.log("Move made:", {
-          notation: move.san,
-          from: sourceSquare,
-          to: targetSquare,
-          piece: move.piece,
-          captured: move.captured ? `Captured ${move.captured}` : "No capture",
-          check: game.inCheck() ? "Check!" : "",
-          gameOver: game.isGameOver()
-            ? `Game Over: ${getCurrentGameResult(game)}`
-            : "",
-        });
-
-        return true;
+        if (result.success && result.moveRecord) {
+          manager?.sendChessData({
+            type: "move",
+            move: result.moveRecord,
+          });
+          return true;
+        } else {
+          toast.error("Invalid move! Please try a different move.");
+          return false;
+        }
       } catch (error) {
         console.log(
           `Invalid move: ${piece} from ${sourceSquare} to ${targetSquare}`,
@@ -142,7 +222,7 @@ export function Chess() {
         return false;
       }
     },
-    [game, gameState.isGameOver, gameState.moves, getCurrentGameResult]
+    [game, gameState.isGameOver, gameState.moves, manager]
   );
 
   return (

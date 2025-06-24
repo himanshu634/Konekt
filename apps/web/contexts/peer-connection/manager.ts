@@ -5,8 +5,11 @@ import { EventEmitter } from "../../lib/event-emiter";
 type EventEmitterEvents = {
   iceCandidate: RTCPeerConnectionIceEvent;
   track: RTCTrackEvent;
-  connectionstatechange: RTCPeerConnectionState;
+  connectionStateChange: RTCPeerConnectionState;
   onUserReceived: { user: { userName: string } };
+  connectionEstablished: void;
+  onChessDataChannelOpen: void;
+  onChessDataChannelMessage: { data: any };
 };
 
 export class PeerConnectionManager {
@@ -17,6 +20,7 @@ export class PeerConnectionManager {
   private makingOffer = false;
   private ignoreOffer = false;
   private localStreams: MediaStream[] = [];
+  private chessDataChannel: RTCDataChannel | null = null;
 
   constructor({ socket, isPolite }: { socket: Socket; isPolite: boolean }) {
     this.socket = socket;
@@ -34,6 +38,7 @@ export class PeerConnectionManager {
     this.peerConnection.ontrack = this.handleTrack;
     this.peerConnection.onconnectionstatechange =
       this.handleConnectionStateChange;
+    this.peerConnection.ondatachannel = this.handleDataChannel;
 
     this.peerConnection.onnegotiationneeded = async () => {
       try {
@@ -64,10 +69,14 @@ export class PeerConnectionManager {
 
   private handleConnectionStateChange = () => {
     if (this.peerConnection) {
-      this.eventEmitter.emit(
-        "connectionstatechange",
-        this.peerConnection.connectionState
-      );
+      const connectionState = this.peerConnection.connectionState;
+      this.eventEmitter.emit("connectionStateChange", connectionState);
+
+      // Emit specific event when connection is established
+      if (connectionState === "connected") {
+        this.eventEmitter.emit("connectionEstablished", undefined);
+        console.log("WebRTC connection established successfully!");
+      }
     }
   };
 
@@ -120,6 +129,79 @@ export class PeerConnectionManager {
       this.socket.emit(SOCKET_EVENTS.CANDIDATE, { candidate: event.candidate });
     }
   };
+
+  private handleDataChannel = (event: RTCDataChannelEvent) => {
+    const dataChannel = event.channel;
+
+    // Check if this is the chess data channel
+    if (dataChannel.label === "chess") {
+      console.log("Received chess data channel from peer");
+      this.chessDataChannel = dataChannel;
+
+      dataChannel.onopen = (event) => {
+        console.log("Received data channel opened", event);
+        this.eventEmitter.emit("onChessDataChannelOpen", undefined);
+      };
+
+      dataChannel.onmessage = (event) => {
+        try {
+          const parsedData = JSON.parse(event.data);
+          this.eventEmitter.emit("onChessDataChannelMessage", {
+            data: parsedData,
+          });
+        } catch (error) {
+          console.error("Error parsing received chess data:", error);
+        }
+      };
+
+      dataChannel.onerror = (error) => {
+        console.error("Received data channel error:", error);
+      };
+    }
+  };
+
+  /**
+   * Initiates a data channel for chess game communication.
+   * @returns void
+   */
+  public initiateChessDataChannel() {
+    if (!this.peerConnection) return;
+
+    try {
+      const dataChannel = this.peerConnection.createDataChannel("chess");
+      this.chessDataChannel = dataChannel;
+      console.log("Data channel created:", dataChannel);
+      dataChannel.onopen = (event) => {
+        this.chessDataChannel = dataChannel; // Store the channel for later use
+        this.eventEmitter.emit("onChessDataChannelOpen", undefined);
+        console.log("Data channel opened", event);
+      };
+      dataChannel.onmessage = (event) => {
+        console.log("Received message:", event.data);
+        this.eventEmitter.emit("onChessDataChannelMessage", {
+          data: event.data,
+        });
+      };
+      dataChannel.onerror = (error) => {
+        console.error("Data channel error:", error);
+      };
+    } catch (error) {
+      console.error("Error creating data channel:", error);
+      return;
+    }
+  }
+
+  public sendChessData(data: any) {
+    if (!this.chessDataChannel || this.chessDataChannel.readyState !== "open") {
+      console.error("Data channel is not open. Cannot send data.");
+      return;
+    }
+    try {
+      this.chessDataChannel.send(JSON.stringify(data));
+    } catch (error) {
+      console.error("Error sending chess data:", error);
+    }
+  }
 
   public addIceCandidate(candidate: RTCIceCandidateInit) {
     this.peerConnection?.addIceCandidate(candidate).catch((e) => {

@@ -57,11 +57,11 @@ export function VideoPlayers({
     }
 
     manager?.on("track", handleTrack);
-    manager?.on("connectionstatechange", handleConnectionStateChange);
+    manager?.on("connectionStateChange", handleConnectionStateChange);
     manager?.on("onUserReceived", handleUserReceived);
     return () => {
       manager?.off("track", handleTrack);
-      manager?.off("connectionstatechange", handleConnectionStateChange);
+      manager?.off("connectionStateChange", handleConnectionStateChange);
       manager?.off("onUserReceived", handleUserReceived);
       manager?.destroy();
     };
