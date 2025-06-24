@@ -17,6 +17,9 @@
       "@assets/*": [
         "./public/*"
       ],
+      "@contexts/*": [
+        "./contexts/*"
+      ],
     }
   },
   "include": [

@@ -10,7 +10,7 @@ import { SOCKET_EVENTS } from "@socket/events";
 import { Button } from "@konekt/ui/button";
 import { cn } from "@konekt/ui/utils";
 import { VideoPlayer } from "./video-player";
-import { usePeerConnection } from "peer-connection/use-peer-connection";
+import { usePeerConnection } from "@contexts/peer-connection";
 
 type VideoPlayersPropsType = ComponentProps<"div"> & {
   userName: string;

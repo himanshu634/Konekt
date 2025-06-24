@@ -1,6 +1,6 @@
 import { SOCKET_EVENTS } from "@socket/events";
 import { Socket } from "socket.io-client";
-import { EventEmitter } from "../lib/event-emiter";
+import { EventEmitter } from "../../lib/event-emiter";
 
 type EventEmitterEvents = {
   iceCandidate: RTCPeerConnectionIceEvent;

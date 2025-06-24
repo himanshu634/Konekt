@@ -1,10 +1,11 @@
 import { cn } from "@konekt/ui/utils";
 import { Chessboard } from "react-chessboard";
 import { useWindowSize } from "usehooks-ts";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Chess as ChessEngine } from "chess.js";
 import { toast } from "sonner";
 import { TurnIndicator } from "./turn-indicator";
+import { usePeerConnection } from "@contexts/peer-connection";
 
 // Types for move tracking
 type Move = {
@@ -27,7 +28,11 @@ type GameState = {
 
 export function Chess() {
   const { height, width } = useWindowSize();
-  // const dataChannelRef = useRef<RTCDataChannel | null>(null);
+  const { manager } = usePeerConnection();
+
+  useEffect(() => {
+    console.log("Peer connection manager:", manager);
+  }, [manager]);
 
   // Initialize chess game
   const [game] = useState(() => new ChessEngine());
@@ -38,48 +43,6 @@ export function Chess() {
     turn: Math.random() < 0.5 ? "w" : "b", // Randomly assign starting turn
     isGameOver: false,
   });
-
-  // useEffect(() => {
-  //   const peerConnection = peerConnectionRef.current.peerConnection;
-  //   const isInitiator = peerConnectionRef.current.isInitiator;
-  //   console.log("Peer connection:", peerConnection, isInitiator);
-  //   if (!peerConnection) {
-  //     console.error("Peer connection is not initialized.");
-  //     return;
-  //   }
-
-  //   function handleMessage(event: MessageEvent) {
-  //     console.log("Message received:", event.data);
-  //     // const data = JSON.parse(event.data);
-  //     // if (data.type === "move") {
-  //     //   handlePieceDrop(data.from, data.to, data.piece);
-  //     // } else if (data.type === "gameState") {
-  //     //   setGameState(data.gameState);
-  //     //   setGamePosition(data.gameState.currentPosition);
-  //     // }
-  //   }
-
-  //   if (isInitiator) {
-  //     // Create a data channel if this peer is the initiator
-  //     console.log("Creating data channel as initiator");
-  //     const dataChannel = peerConnection.createDataChannel("chess");
-
-  //     dataChannel.onopen = (event) => {
-  //       console.log("Data channel opened:", event);
-  //       dataChannelRef.current = dataChannel;
-  //     };
-
-  //     dataChannel.onmessage = handleMessage;
-  //   }
-  //   peerConnection.ondatachannel = (event) => {
-  //     const receivedChannel = event.channel;
-  //     // Set up the received data channel
-  //     dataChannelRef.current = receivedChannel;
-  //     console.log("Data channel received:", event.channel);
-
-  //     receivedChannel.onmessage = handleMessage;
-  //   };
-  // }, []);
 
   // Helper function to get the current game result
   const getCurrentGameResult = useCallback((gameInstance: ChessEngine) => {
