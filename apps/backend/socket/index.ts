@@ -24,6 +24,9 @@ export function initializeSocket(httpServer: HTTPServer) {
 
     const stats = roomManager.getStats();
     console.log(`Current stats: ${JSON.stringify(stats)}`);
+    socket.prependAny((eventName, ...args) => {
+      console.log(`📡 Event emitted: ${eventName}`, ...args);
+    });
 
     socket.on(SOCKET_EVENTS.JOIN_QUEUE, ({ userName }) => {
       console.log(`User ${socket.id} wants to join queue`, userName);
