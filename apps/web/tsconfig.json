@@ -20,6 +20,9 @@
       "@contexts/*": [
         "./contexts/*"
       ],
+      "@hooks/*": [
+        "./hooks/*"
+      ],
     }
   },
   "include": [

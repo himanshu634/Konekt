@@ -1,11 +1,12 @@
 import { cn } from "@konekt/ui/utils";
 import { Chessboard } from "react-chessboard";
-import { useWindowSize } from "usehooks-ts";
 import { useState, useCallback, useEffect } from "react";
 import { Chess as ChessEngine } from "chess.js";
 import { toast } from "sonner";
 import { TurnIndicator } from "./turn-indicator";
 import { usePeerConnection } from "@contexts/peer-connection";
+import { useWindowSize } from "@uidotdev/usehooks";
+import Confetti from "react-confetti";
 
 // Types for move tracking
 type Move = {
@@ -107,9 +108,34 @@ function validateMove({
   return { isValid: !!move, move };
 }
 
+function getChessboardWidth(
+  height: number | null | undefined,
+  width: number | null | undefined
+) {
+  // Reserve space for video streams and margins below the chessboard
+  const reservedHeight = 260; // px, adjust as needed for video area
+  const marginRatio = 0.9;
+  const minBoardSize = 240; // px
+  const maxBoardSize = 600; // px
+
+  if (
+    typeof width !== "number" ||
+    typeof height !== "number" ||
+    isNaN(width) ||
+    isNaN(height)
+  ) {
+    return minBoardSize;
+  }
+
+  // Calculate available height for the chessboard
+  const availableHeight = Math.max(height - reservedHeight, minBoardSize);
+  const size = Math.floor(Math.min(width, availableHeight) * marginRatio);
+  return Math.max(minBoardSize, Math.min(size, maxBoardSize));
+}
+
 export function Chess() {
-  const { height, width } = useWindowSize();
   const { manager } = usePeerConnection();
+  const { width, height } = useWindowSize();
 
   // Initialize chess game
   const [game] = useState(() => new ChessEngine());
@@ -126,57 +152,45 @@ export function Chess() {
   });
 
   useEffect(() => {
-    console.log("Peer connection manager:", manager);
     if (!manager) return;
 
     function handleConnectionEstablished() {
       manager?.initiateChessDataChannel();
       // Assign player side when connection is established
       // The initiator (not polite) gets white, the receiver (polite) gets black
-      if (manager) {
-        const isInitiator = !manager.getIsPolite();
-        if (isInitiator) {
-          setPlayerSide("w");
-          toast.success("You are playing as White pieces!");
-        } else {
-          setPlayerSide("b");
-          toast.success("You are playing as Black pieces!");
-        }
-      }
+      if (!manager) return;
+      const isInitiator = !manager.getIsPolite();
+      setPlayerSide(isInitiator ? "w" : "b");
+      toast.success(
+        `You are playing as ${isInitiator ? "White" : "Black"} pieces!`
+      );
     }
 
     function handleChessDataChannelMessage(data: { data: string }) {
-      console.log("Received chess data:", data);
+      // Only handle chess move messages
       try {
         const receivedData = JSON.parse(data.data);
-        if (receivedData.type === "move") {
-          // Apply the move from the other player
-          const moveData: Move = receivedData.move;
-          console.log("Processing received move:", moveData);
-
-          const result = applyMove({
-            moveData,
-            game,
-            prevMoves: gameState.moves,
-            onStateUpdate: setGameState,
-            onPositionUpdate: setGamePosition,
-          });
-
-          if (!result.success) {
-            console.error("Invalid received move:", moveData);
-          }
+        if (receivedData.type !== "move") return;
+        const moveData: Move = receivedData.move;
+        const result = applyMove({
+          moveData,
+          game,
+          prevMoves: gameState.moves,
+          onStateUpdate: setGameState,
+          onPositionUpdate: setGamePosition,
+        });
+        if (!result.success) {
+          console.error("Invalid received move:", moveData);
         }
       } catch (error) {
         console.error("Error processing received chess data:", error);
       }
     }
 
-    // manager.on("onChessDataChannelOpen", handleChessDataChannelOpen);
     manager.on("connectionEstablished", handleConnectionEstablished);
     manager.on("onChessDataChannelMessage", handleChessDataChannelMessage);
 
     return () => {
-      // manager.off("onChessDataChannelOpen", handleChessDataChannelOpen);
       manager.off("connectionEstablished", handleConnectionEstablished);
       manager.off("onChessDataChannelMessage", handleChessDataChannelMessage);
     };
@@ -185,31 +199,29 @@ export function Chess() {
   // Track piece movements
   const handlePieceDrop = useCallback(
     (sourceSquare: string, targetSquare: string, piece: string) => {
+      // Prevent moves if game is over
       if (gameState.isGameOver) {
         toast.error("Game is over! No more moves allowed.");
         return false;
       }
-
-      // Check if player is assigned a side
+      // Ensure player side is assigned
       if (!playerSide) {
         toast.error("Waiting for connection to be established...");
         return false;
       }
-
-      // Check if it's the player's turn
+      // Enforce turn order
       if (gameState.turn !== playerSide) {
         toast.error("It's not your turn!");
         return false;
       }
-
-      // Check if player is trying to move their own pieces
+      // Only allow moving own pieces
       const pieceColor = piece[0]?.toLowerCase() === "w" ? "w" : "b";
       if (pieceColor !== playerSide) {
         toast.error("You can only move your own pieces!");
         return false;
       }
-
       try {
+        // Prepare move data
         const moveData: Move = {
           from: sourceSquare,
           to: targetSquare,
@@ -218,17 +230,12 @@ export function Chess() {
           timestamp: new Date(),
           san: "", // Will be overwritten by chess.js
         };
-
-        // Validate move using validateMove helper
+        // Validate move
         const { isValid, move } = validateMove({ game, moveData });
         if (!isValid || !move) {
-          console.log(
-            `Invalid move: ${piece} from ${sourceSquare} to ${targetSquare}`
-          );
           toast.error("Invalid move! Please try a different move.");
           return false;
         }
-
         // Apply move
         const result = applyMove({
           moveData: {
@@ -244,7 +251,6 @@ export function Chess() {
           onStateUpdate: setGameState,
           onPositionUpdate: setGamePosition,
         });
-
         if (result.success && result.moveRecord) {
           manager?.sendChessData({
             type: "move",
@@ -255,11 +261,7 @@ export function Chess() {
           toast.error("Invalid move! Please try a different move.");
           return false;
         }
-      } catch (error) {
-        console.log(
-          `Invalid move: ${piece} from ${sourceSquare} to ${targetSquare}`,
-          error
-        );
+      } catch {
         toast.error("Invalid move! Please try a different move.");
         return false;
       }
@@ -276,41 +278,45 @@ export function Chess() {
 
   return (
     <div className="flex flex-col items-center gap-4">
-      {/* Player Side Indicator */}
-      {playerSide && (
-        <div className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg font-semibold">
-          <div
-            className={cn(
-              "w-4 h-4 rounded-full border-2",
-              playerSide === "w"
-                ? "bg-white border-gray-400"
-                : "bg-black border-gray-600"
-            )}
-          />
-          <span>
-            You are playing as {playerSide === "w" ? "White" : "Black"}
-          </span>
-        </div>
-      )}
+      <div className="flex gap-4">
+        {/* Player Side Indicator */}
+        {playerSide && (
+          <div className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg font-semibold">
+            <div
+              className={cn(
+                "w-4 h-4 rounded-full border-2",
+                playerSide === "w"
+                  ? "bg-white border-gray-400"
+                  : "bg-black border-gray-600"
+              )}
+            />
+            <span>
+              You are playing as {playerSide === "w" ? "White" : "Black"}
+            </span>
+          </div>
+        )}
+        {!playerSide && (
+          <div className="flex items-center gap-2 px-4 py-2 bg-muted text-muted-foreground rounded-xl">
+            <div className="w-4 h-4 rounded-full bg-gray-400 animate-pulse" />
+            <span>Waiting for connection...</span>
+          </div>
+        )}
 
-      {!playerSide && (
-        <div className="flex items-center gap-2 px-4 py-2 bg-muted text-muted-foreground rounded-lg">
-          <div className="w-4 h-4 rounded-full bg-gray-400 animate-pulse" />
-          <span>Waiting for connection...</span>
-        </div>
-      )}
-
-      {/* Turn Indicator */}
-      <TurnIndicator
-        currentTurn={gameState.turn}
-        game={game}
-        isGameOver={gameState.isGameOver}
-      />
+        {/* Turn Indicator */}
+        <TurnIndicator
+          currentTurn={gameState.turn}
+          game={game}
+          isGameOver={gameState.isGameOver}
+        />
+      </div>
 
       {/* Chess Board */}
       <div
         className={cn(
-          "p-4 w-auto items-center h-auto flex bg-secondary text-lg font-semibold rounded-2xl justify-center",
+          "p-4 w-auto items-center h-auto flex bg-secondary text-lg font-semibold rounded-2xl justify-center transition-all",
+          gameState.turn === "w"
+            ? "shadow-lg shadow-white"
+            : "shadow-lg shadow-black",
           "[&>div]:w-min! [&>div]:rounded-lg [&>div]:overflow-clip"
         )}
       >
@@ -321,7 +327,7 @@ export function Chess() {
           showPromotionDialog
           boardOrientation={playerSide === "b" ? "black" : "white"}
           animationDuration={200}
-          boardWidth={height * 0.8 < width - 100 ? height * 0.8 : width - 100}
+          boardWidth={getChessboardWidth(height, width)}
           onPieceDrop={handlePieceDrop}
         />
       </div>

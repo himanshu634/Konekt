@@ -18,9 +18,9 @@ export default function RootLayout({
     <html lang="en">
       <body className="dark">
         <PeerConnectionProvider>
-          <main className="h-screen flex flex-col">
+          <main className="flex flex-col h-screen">
             <TopBar />
-            <div className="flex-grow overflow-y-auto">{children}</div>
+            <div className="flex-grow overflow-auto">{children}</div>
             <Toaster position="top-right" closeButton />
           </main>
         </PeerConnectionProvider>

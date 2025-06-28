@@ -16,7 +16,7 @@ type VideoPlayersPropsType = ComponentProps<"div"> & {
   userName: string;
 };
 
-export function VideoPlayers({
+export function Streams({
   userName,
   className,
   ...restProps
@@ -29,20 +29,18 @@ export function VideoPlayers({
   const [connectionState, setConnectionState] = useState<
     "idle" | "waiting" | "matched" | "calling" | "connected"
   >("idle");
-  const [roomInfo, setRoomInfo] = useState<{
-    roomId?: string;
-    otherUser?: string;
-  }>({});
 
   useEffect(() => {
+    // Handle incoming remote media tracks
     function handleTrack(event: RTCTrackEvent) {
       const remoteVideo = remoteVideoRef.current;
       if (remoteVideo && event.streams[0] && event.streams.length > 0) {
-        // Set the remote video stream to the video element
         remoteVideo.srcObject = event.streams[0];
         remoteVideo.play();
       }
     }
+
+    // Update connection state when peer connection state changes
     function handleConnectionStateChange(
       connectionState: RTCPeerConnectionState
     ) {
@@ -51,6 +49,7 @@ export function VideoPlayers({
       }
     }
 
+    // Set opponent's username and update state when user info is received
     function handleUserReceived(data: { user: { userName: string } }) {
       setOpponentUserName(data.user.userName);
       setConnectionState("matched");
@@ -59,6 +58,7 @@ export function VideoPlayers({
     manager?.on("track", handleTrack);
     manager?.on("connectionStateChange", handleConnectionStateChange);
     manager?.on("onUserReceived", handleUserReceived);
+
     return () => {
       manager?.off("track", handleTrack);
       manager?.off("connectionStateChange", handleConnectionStateChange);
@@ -67,16 +67,12 @@ export function VideoPlayers({
     };
   }, [manager]);
 
-  // Initialize local video stream
+  // Initialize and display local video stream
   useEffect(() => {
     const localVideo = localVideoRef.current;
-
     if (!localVideo) return;
 
-    const constraints = {
-      video: true,
-      audio: true,
-    };
+    const constraints = { video: true, audio: true };
 
     navigator.mediaDevices
       .getUserMedia(constraints)
@@ -91,34 +87,38 @@ export function VideoPlayers({
   }, [manager]);
 
   useEffect(() => {
+    // Add ICE candidate to peer connection
     const handleCandidateReceived = (data: { candidate: RTCIceCandidate }) => {
       if (data.candidate) {
         manager?.addIceCandidate(data.candidate);
       }
     };
 
-    // NEW: Room-based event handlers
+    // Set state to waiting when searching for a match
     const handleWaitingForMatch = () => {
       setConnectionState("waiting");
     };
 
+    // Handle room creation and initialize polite/impolite logic
     const handleRoomCreated = (data: { roomId: string; users: string[] }) => {
       const otherUser = data.users.find((id) => id !== socket.id);
       const isPolite = (socket.id ? socket.id : "") > (otherUser ?? "");
-      init(isPolite);
-
-      setRoomInfo({
-        roomId: data.roomId,
+      console.log(
+        "Room created:",
+        data.roomId,
+        "Other user:",
         otherUser,
-      });
-
+        "Is polite:"
+      );
+      init(isPolite);
+      // setRoomInfo({ roomId: data.roomId, otherUser });
       setConnectionState("matched");
     };
 
+    // Handle when the room mate leaves
     const handleRoomMateLeft = () => {
       setConnectionState("waiting");
-      setRoomInfo({});
-
+      // setRoomInfo({});
       // Reset remote video since partner left
       const remoteVideo = remoteVideoRef.current;
       if (remoteVideo) {
@@ -126,10 +126,12 @@ export function VideoPlayers({
       }
     };
 
+    // Register socket event listeners
     socket.on(SOCKET_EVENTS.WAITING_FOR_MATCH, handleWaitingForMatch);
     socket.on(SOCKET_EVENTS.ROOM_CREATED, handleRoomCreated);
     socket.on(SOCKET_EVENTS.ROOM_MATE_LEFT, handleRoomMateLeft);
     socket.on(SOCKET_EVENTS.CANDIDATE, handleCandidateReceived);
+
     return () => {
       socket.off(SOCKET_EVENTS.WAITING_FOR_MATCH, handleWaitingForMatch);
       socket.off(SOCKET_EVENTS.ROOM_CREATED, handleRoomCreated);
@@ -138,22 +140,19 @@ export function VideoPlayers({
     };
   }, [init, manager]);
 
+  // Emit event to join the matchmaking queue
   const handleFindMatch = useCallback(() => {
     setConnectionState("waiting");
     socket.emit(SOCKET_EVENTS.JOIN_QUEUE, { userName });
   }, [userName]);
 
-  const handleStartCall = useCallback(async () => {
-    setConnectionState("calling");
-    await manager?.call();
-  }, [manager]);
-
+  // Leave the matchmaking queue and reset state
   const handleLeaveQueue = useCallback(() => {
     setConnectionState("idle");
-    setRoomInfo({});
     socket.emit(SOCKET_EVENTS.LEAVE_QUEUE);
   }, []);
 
+  // Get button configuration based on current connection state
   const getButtonConfig = () => {
     switch (connectionState) {
       case "idle":
@@ -170,13 +169,6 @@ export function VideoPlayers({
           disabled: false,
           variant: "outline" as const,
         };
-      case "matched":
-        return {
-          text: "Start Call",
-          action: handleStartCall,
-          disabled: false,
-          variant: "default" as const,
-        };
       case "calling":
         return {
           text: "Connecting...",
@@ -184,9 +176,9 @@ export function VideoPlayers({
           disabled: true,
           variant: "default" as const,
         };
-      case "connected":
+      case "matched":
         return {
-          text: "Connected!",
+          text: "Shuffle!",
           action: () => {},
           disabled: true,
           variant: "default" as const,
@@ -204,25 +196,11 @@ export function VideoPlayers({
   const buttonConfig = getButtonConfig();
 
   return (
-    <div
-      className={cn("space-y-4 w-full flex flex-col", className)}
-      {...restProps}
-    >
-      <div className="space-y-4">
+    <div className={cn("gap-4 flex flex-col", className)} {...restProps}>
+      <div className="gap-4 flex! lg:flex-col">
         <VideoPlayer ref={localVideoRef} userName={userName} />
         <VideoPlayer ref={remoteVideoRef} userName={opponentUserName} />
       </div>
-
-      <div className="text-center text-sm min-h-[20px]">
-        {connectionState === "idle" && "Find a match!"}
-        {connectionState === "waiting" &&
-          "Looking for someone to connect with..."}
-        {connectionState === "matched" && `Match found! Ready to call.`}
-        {connectionState === "calling" && "Establishing connection..."}
-        {connectionState === "connected" &&
-          "Connection established! You can now talk."}
-      </div>
-
       <Button
         onClick={buttonConfig.action}
         disabled={buttonConfig.disabled}
@@ -230,12 +208,6 @@ export function VideoPlayers({
       >
         {buttonConfig.text}
       </Button>
-
-      {roomInfo.roomId && (
-        <div className="text-xs text-gray-400 text-center">
-          Room: {roomInfo.roomId.slice(-8)}
-        </div>
-      )}
     </div>
   );
 }
