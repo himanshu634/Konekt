@@ -14,6 +14,9 @@ export function initializeSocket(httpServer: HTTPServer) {
       methods: ["GET", "POST"],
       credentials: true,
     },
+    transports: ["websocket", "polling"],
+    pingInterval: 25000,
+    pingTimeout: 60000
   });
 
   io.on(SOCKET_EVENTS.CONNECT, (socket) => {
