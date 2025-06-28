@@ -87,6 +87,12 @@ export function Streams({
   }, [manager]);
 
   useEffect(() => {
+    socket.prependAny((eventName, ...args) => {
+      console.log(`Frontend - Event emitted: ${eventName}`, ...args);
+    });
+    socket.onAny((event, ...args) => {
+      console.log(`📡 Event received: ${event}`, ...args);
+    });
     // Add ICE candidate to peer connection
     const handleCandidateReceived = (data: { candidate: RTCIceCandidate }) => {
       if (data.candidate) {
@@ -96,6 +102,7 @@ export function Streams({
 
     // Set state to waiting when searching for a match
     const handleWaitingForMatch = () => {
+      console.log('Waiting for match...');
       setConnectionState("waiting");
     };
 
@@ -126,11 +133,17 @@ export function Streams({
       }
     };
 
-    // Register socket event listeners
-    socket.on(SOCKET_EVENTS.WAITING_FOR_MATCH, handleWaitingForMatch);
-    socket.on(SOCKET_EVENTS.ROOM_CREATED, handleRoomCreated);
-    socket.on(SOCKET_EVENTS.ROOM_MATE_LEFT, handleRoomMateLeft);
-    socket.on(SOCKET_EVENTS.CANDIDATE, handleCandidateReceived);
+    // setTimeout(() => {
+      console.log('socket',socket);
+      console.log('socket.id',socket.id);
+      console.log('Keys',Object.keys(socket));
+      console.log("TIMEOUT OVER");
+      // Register socket event listeners
+      socket.on(SOCKET_EVENTS.WAITING_FOR_MATCH, handleWaitingForMatch);
+      socket.on(SOCKET_EVENTS.ROOM_CREATED, handleRoomCreated);
+      socket.on(SOCKET_EVENTS.ROOM_MATE_LEFT, handleRoomMateLeft);
+      socket.on(SOCKET_EVENTS.CANDIDATE, handleCandidateReceived);
+    // }, 10000);
 
     return () => {
       socket.off(SOCKET_EVENTS.WAITING_FOR_MATCH, handleWaitingForMatch);
@@ -138,7 +151,7 @@ export function Streams({
       socket.off(SOCKET_EVENTS.ROOM_MATE_LEFT, handleRoomMateLeft);
       socket.off(SOCKET_EVENTS.CANDIDATE, handleCandidateReceived);
     };
-  }, [init, manager]);
+  }, []);
 
   // Emit event to join the matchmaking queue
   const handleFindMatch = useCallback(() => {
