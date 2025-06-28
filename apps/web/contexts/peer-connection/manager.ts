@@ -249,4 +249,8 @@ export class PeerConnectionManager {
   ) {
     this.eventEmitter.off(event, listener);
   }
+
+  public getIsPolite(): boolean {
+    return this.isPolite;
+  }
 }

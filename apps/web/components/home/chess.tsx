@@ -26,6 +26,8 @@ type GameState = {
   result?: string;
 };
 
+type PlayerSide = "w" | "b";
+
 // Helper function to get the current game result
 const getCurrentGameResult = (gameInstance: ChessEngine) => {
   if (gameInstance.isCheckmate()) {
@@ -108,13 +110,18 @@ function validateMove({
 export function Chess() {
   const { height, width } = useWindowSize();
   const { manager } = usePeerConnection();
+
   // Initialize chess game
   const [game] = useState(() => new ChessEngine());
   const [gamePosition, setGamePosition] = useState(game.fen());
+
+  // Determine player side - first player gets white, second gets black
+  const [playerSide, setPlayerSide] = useState<PlayerSide | null>(null);
+
   const [gameState, setGameState] = useState<GameState>({
     moves: [],
     currentPosition: game.fen(),
-    turn: Math.random() < 0.5 ? "w" : "b", // Randomly assign starting turn
+    turn: "w", // Always start with white
     isGameOver: false,
   });
 
@@ -124,6 +131,18 @@ export function Chess() {
 
     function handleConnectionEstablished() {
       manager?.initiateChessDataChannel();
+      // Assign player side when connection is established
+      // The initiator (not polite) gets white, the receiver (polite) gets black
+      if (manager) {
+        const isInitiator = !manager.getIsPolite();
+        if (isInitiator) {
+          setPlayerSide("w");
+          toast.success("You are playing as White pieces!");
+        } else {
+          setPlayerSide("b");
+          toast.success("You are playing as Black pieces!");
+        }
+      }
     }
 
     function handleChessDataChannelMessage(data: { data: string }) {
@@ -161,7 +180,7 @@ export function Chess() {
       manager.off("connectionEstablished", handleConnectionEstablished);
       manager.off("onChessDataChannelMessage", handleChessDataChannelMessage);
     };
-  }, [manager, game, gameState.moves]);
+  }, [manager, game, gameState.moves, playerSide]);
 
   // Track piece movements
   const handlePieceDrop = useCallback(
@@ -170,6 +189,26 @@ export function Chess() {
         toast.error("Game is over! No more moves allowed.");
         return false;
       }
+
+      // Check if player is assigned a side
+      if (!playerSide) {
+        toast.error("Waiting for connection to be established...");
+        return false;
+      }
+
+      // Check if it's the player's turn
+      if (gameState.turn !== playerSide) {
+        toast.error("It's not your turn!");
+        return false;
+      }
+
+      // Check if player is trying to move their own pieces
+      const pieceColor = piece[0]?.toLowerCase() === "w" ? "w" : "b";
+      if (pieceColor !== playerSide) {
+        toast.error("You can only move your own pieces!");
+        return false;
+      }
+
       try {
         const moveData: Move = {
           from: sourceSquare,
@@ -179,6 +218,7 @@ export function Chess() {
           timestamp: new Date(),
           san: "", // Will be overwritten by chess.js
         };
+
         // Validate move using validateMove helper
         const { isValid, move } = validateMove({ game, moveData });
         if (!isValid || !move) {
@@ -188,6 +228,7 @@ export function Chess() {
           toast.error("Invalid move! Please try a different move.");
           return false;
         }
+
         // Apply move
         const result = applyMove({
           moveData: {
@@ -203,6 +244,7 @@ export function Chess() {
           onStateUpdate: setGameState,
           onPositionUpdate: setGamePosition,
         });
+
         if (result.success && result.moveRecord) {
           manager?.sendChessData({
             type: "move",
@@ -222,11 +264,42 @@ export function Chess() {
         return false;
       }
     },
-    [game, gameState.isGameOver, gameState.moves, manager]
+    [
+      game,
+      gameState.isGameOver,
+      gameState.moves,
+      gameState.turn,
+      playerSide,
+      manager,
+    ]
   );
 
   return (
     <div className="flex flex-col items-center gap-4">
+      {/* Player Side Indicator */}
+      {playerSide && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg font-semibold">
+          <div
+            className={cn(
+              "w-4 h-4 rounded-full border-2",
+              playerSide === "w"
+                ? "bg-white border-gray-400"
+                : "bg-black border-gray-600"
+            )}
+          />
+          <span>
+            You are playing as {playerSide === "w" ? "White" : "Black"}
+          </span>
+        </div>
+      )}
+
+      {!playerSide && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-muted text-muted-foreground rounded-lg">
+          <div className="w-4 h-4 rounded-full bg-gray-400 animate-pulse" />
+          <span>Waiting for connection...</span>
+        </div>
+      )}
+
       {/* Turn Indicator */}
       <TurnIndicator
         currentTurn={gameState.turn}
@@ -243,10 +316,10 @@ export function Chess() {
       >
         <Chessboard
           position={gamePosition}
-          arePiecesDraggable={!gameState.isGameOver}
+          arePiecesDraggable={!gameState.isGameOver && !!playerSide}
           showBoardNotation
           showPromotionDialog
-          boardOrientation="black"
+          boardOrientation={playerSide === "b" ? "black" : "white"}
           animationDuration={200}
           boardWidth={height * 0.8 < width - 100 ? height * 0.8 : width - 100}
           onPieceDrop={handlePieceDrop}
