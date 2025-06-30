@@ -3,12 +3,14 @@ import { ComponentProps } from "react";
 
 type VideoPlayerProps = ComponentProps<"video"> & {
   userName?: string;
+  muted?: boolean;
 };
 
 export function VideoPlayer({
   ref,
   userName,
   className,
+  muted = false,
   ...restProps
 }: VideoPlayerProps) {
   return (
@@ -17,6 +19,7 @@ export function VideoPlayer({
         ref={ref}
         autoPlay
         playsInline
+        muted={muted}
         className={cn(
           "rounded-2xl h-50 w-80 shrink-0 object-center object-cover overflow-clip border-4 border-blue-400",
           className

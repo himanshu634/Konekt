@@ -72,11 +72,22 @@ export function Streams({
     const localVideo = localVideoRef.current;
     if (!localVideo) return;
 
-    const constraints = { video: true, audio: true };
+    const constraints = { 
+      video: true, 
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        sampleRate: 44100
+      }
+    };
+
+    let mediaStream: MediaStream | null = null;
 
     navigator.mediaDevices
       .getUserMedia(constraints)
       .then((streams) => {
+        mediaStream = streams;
         localVideo.srcObject = streams;
         localVideo.play();
         manager?.addTracks([streams]);
@@ -84,6 +95,15 @@ export function Streams({
       .catch((error) => {
         console.error("Error accessing media devices.", error);
       });
+
+    return () => {
+      // Cleanup media stream tracks to prevent echo
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(track => {
+          track.stop();
+        });
+      }
+    };
   }, [manager]);
 
   useEffect(() => {
@@ -151,7 +171,7 @@ export function Streams({
       socket.off(SOCKET_EVENTS.ROOM_MATE_LEFT, handleRoomMateLeft);
       socket.off(SOCKET_EVENTS.CANDIDATE, handleCandidateReceived);
     };
-  }, []);
+  }, [init, manager]);
 
   // Emit event to join the matchmaking queue
   const handleFindMatch = useCallback(() => {
@@ -211,8 +231,8 @@ export function Streams({
   return (
     <div className={cn("gap-4 flex flex-col", className)} {...restProps}>
       <div className="gap-4 flex! lg:flex-col">
-        <VideoPlayer ref={localVideoRef} userName={userName} />
-        <VideoPlayer ref={remoteVideoRef} userName={opponentUserName} />
+        <VideoPlayer ref={localVideoRef} userName={userName} muted={true} />
+        <VideoPlayer ref={remoteVideoRef} userName={opponentUserName} muted={false} />
       </div>
       <Button
         onClick={buttonConfig.action}
