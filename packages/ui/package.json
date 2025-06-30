@@ -16,7 +16,8 @@
     "./sonner": "./src/components/sonner.tsx"
   },
   "scripts": {
-    "dev": "npx @tailwindcss/cli -i ./styles/globals.css -o ./dist/index.css --watch"
+    "dev": "npx @tailwindcss/cli -i ./styles/globals.css -o ./dist/index.css --watch",
+    "dev:css": "npx @tailwindcss/cli -i ./styles/globals.css -o ./dist/index.css"
   },
   "dependencies": {
     "@hookform/resolvers": "^4.1.0",
