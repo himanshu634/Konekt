@@ -55,7 +55,7 @@ export function NameInput() {
               <FormLabel className="text-xl">Name</FormLabel>
               <FormControl>
                 <Input
-                  className="w-md text-4xl! h-20 "
+                  className="w-full sm:w-96! text-lg sm:text-4xl! h-12 sm:h-20"
                   placeholder="Enter your name"
                   autoComplete="off"
                   {...field}

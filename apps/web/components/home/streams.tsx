@@ -225,6 +225,7 @@ export function Streams({
           disabled: true,
           variant: "default" as const,
         };
+      case "matched":
       case "connected":
         return {
           text: "Shuffle!",
