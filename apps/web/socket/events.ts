@@ -11,7 +11,9 @@ export const SOCKET_EVENTS = {
   CANDIDATE: "candidate",
   JOIN_QUEUE: "joinQueue",
   LEAVE_QUEUE: "leaveQueue",
+  SHUFFLE_QUEUE: "shuffleQueue",
   WAITING_FOR_MATCH: "waitingForMatch",
   ROOM_CREATED: "roomCreated",
   ROOM_MATE_LEFT: "roomMateLeft",
+  SHUFFLE: "shuffle",
 } as const;

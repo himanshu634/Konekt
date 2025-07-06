@@ -27,8 +27,22 @@ export function Streams({
   const [opponentUserName, setOpponentUserName] = useState<string>("");
 
   const [connectionState, setConnectionState] = useState<
-    "idle" | "waiting" | "matched" | "calling" | "connected"
+    "idle" | "waiting" | "matched" | "calling" | "connected" | "shuffling"
   >("idle");
+
+  const resetTheRemoteVideo = useCallback(() => {
+    setConnectionState("shuffling");
+    setOpponentUserName("");
+    const remoteVideo = remoteVideoRef.current;
+    if (remoteVideo) {
+      remoteVideo.srcObject = null; // Reset remote video when disconnected
+    }
+  }, []);
+
+  const handleShuffle = useCallback(() => {
+    resetTheRemoteVideo();
+    socket.emit(SOCKET_EVENTS.SHUFFLE_QUEUE, { userName });
+  }, [resetTheRemoteVideo, userName]);
 
   useEffect(() => {
     // Handle incoming remote media tracks
@@ -57,12 +71,7 @@ export function Streams({
     }
 
     function handleConnecttionDisconnected() {
-      setConnectionState("idle");
-      setOpponentUserName("");
-      const remoteVideo = remoteVideoRef.current;
-      if (remoteVideo) {
-        remoteVideo.srcObject = null; // Reset remote video when disconnected
-      }
+      handleShuffle();
     }
 
     manager?.on("track", handleTrack);
@@ -76,7 +85,7 @@ export function Streams({
       manager?.off("disconnected", handleConnecttionDisconnected);
       manager?.destroy();
     };
-  }, [manager]);
+  }, [manager, handleShuffle]);
 
   // Initialize and display local video stream
   useEffect(() => {
@@ -202,6 +211,13 @@ export function Streams({
           disabled: false,
           variant: "outline" as const,
         };
+      case "shuffling":
+        return {
+          text: "Shuffling...",
+          action: () => {},
+          disabled: true,
+          variant: "default" as const,
+        };
       case "calling":
         return {
           text: "Connecting...",
@@ -210,10 +226,10 @@ export function Streams({
           variant: "default" as const,
         };
       case "matched":
+      case "connected":
         return {
           text: "Shuffle!",
-          action: () => {},
-          disabled: true,
+          action: handleShuffle,
           variant: "default" as const,
         };
       default:

@@ -16,7 +16,7 @@ export function initializeSocket(httpServer: HTTPServer) {
     },
     transports: ["websocket", "polling"],
     pingInterval: 25000,
-    pingTimeout: 60000
+    pingTimeout: 60000,
   });
 
   io.on(SOCKET_EVENTS.CONNECT, (socket) => {
@@ -76,6 +76,59 @@ export function initializeSocket(httpServer: HTTPServer) {
             message: "New match found!",
           });
         }
+      }
+    });
+
+    socket.on(SOCKET_EVENTS.SHUFFLE_QUEUE, () => {
+      console.log(`User ${socket.id} wants to shuffle.`);
+
+      const shuffleResult = roomManager.shuffleUser(socket.id);
+
+      if (shuffleResult) {
+        const { otherUserId } = shuffleResult;
+
+        // Notify the old partner that the user has left
+        if (otherUserId) {
+          io.to(otherUserId).emit(SOCKET_EVENTS.ROOM_MATE_LEFT, {
+            message:
+              "Your partner shuffled. You've been added back to the queue to find a new match.",
+          });
+          // Try to find a new match for the old partner immediately
+          const newRoomResultForOther = roomManager.tryCreateRoom();
+          if (newRoomResultForOther) {
+            const { roomId, users } = newRoomResultForOther;
+            users.forEach((userId) => {
+              io.sockets.sockets.get(userId)?.join(roomId);
+            });
+            io.to(roomId).emit(SOCKET_EVENTS.ROOM_CREATED, {
+              roomId,
+              users,
+              message: "New match found!",
+            });
+          }
+        }
+
+        // Notify the shuffling user they are back in the queue
+        socket.emit(SOCKET_EVENTS.WAITING_FOR_MATCH);
+
+        // Try to find a new match for the shuffling user
+        const newRoomResultForShuffler = roomManager.tryCreateRoom();
+        if (newRoomResultForShuffler) {
+          const { roomId, users } = newRoomResultForShuffler;
+          users.forEach((userId) => {
+            io.sockets.sockets.get(userId)?.join(roomId);
+          });
+          io.to(roomId).emit(SOCKET_EVENTS.ROOM_CREATED, {
+            roomId,
+            users,
+            message: "New match found after shuffling!",
+          });
+        }
+      } else {
+        // Handle case where shuffle was not possible (e.g., not in a room)
+        socket.emit("error", {
+          message: "Could not shuffle. You may not be in a room.",
+        });
       }
     });
 

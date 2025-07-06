@@ -127,6 +127,41 @@ export class RoomManager {
     return result; // Return info about what was cleaned up
   }
 
+  // Shuffle user to a new room
+  shuffleUser(socketId: string): { otherUserId?: string } | null {
+    const user = this.users.get(socketId);
+    if (!user || !user.roomId) return null; // User not in a room
+
+    const room = this.rooms.get(user.roomId);
+    if (!room) return null;
+
+    // Find the other user in the room
+    const otherUserId = room.users.find((id) => id !== socketId);
+
+    // Delete the old room first
+    this.rooms.delete(user.roomId);
+    console.log(`Room ${user.roomId} deleted for shuffle.`);
+
+    // Put the shuffling user back in the queue
+    user.roomId = undefined;
+    user.status = "waiting";
+    this.waitingQueue.push(socketId);
+    console.log(`User ${socketId} is shuffling and back in queue.`);
+
+    // Put the other user back in the queue
+    if (otherUserId) {
+      const otherUser = this.users.get(otherUserId);
+      if (otherUser) {
+        otherUser.roomId = undefined;
+        otherUser.status = "waiting";
+        this.waitingQueue.push(otherUserId);
+        console.log(`User ${otherUserId} put back into waiting queue.`);
+      }
+    }
+
+    return { otherUserId };
+  }
+
   // Get room information by room ID
   getRoom(roomId: string): Room | undefined {
     return this.rooms.get(roomId);
