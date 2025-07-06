@@ -55,14 +55,24 @@ export function Streams({
       setConnectionState("matched");
     }
 
+    function handleConnecttionDisconnected() {
+      setConnectionState("idle");
+      setOpponentUserName("");
+      const remoteVideo = remoteVideoRef.current;
+      if (remoteVideo) {
+        remoteVideo.srcObject = null; // Reset remote video when disconnected
+      }
+    }
+
     manager?.on("track", handleTrack);
     manager?.on("connectionStateChange", handleConnectionStateChange);
     manager?.on("onUserReceived", handleUserReceived);
-
+    manager?.on("disconnected", handleConnecttionDisconnected);
     return () => {
       manager?.off("track", handleTrack);
       manager?.off("connectionStateChange", handleConnectionStateChange);
       manager?.off("onUserReceived", handleUserReceived);
+      manager?.off("disconnected", handleConnecttionDisconnected);
       manager?.destroy();
     };
   }, [manager]);
@@ -72,14 +82,14 @@ export function Streams({
     const localVideo = localVideoRef.current;
     if (!localVideo) return;
 
-    const constraints = { 
-      video: true, 
+    const constraints = {
+      video: true,
       audio: {
         echoCancellation: true,
         noiseSuppression: true,
         autoGainControl: true,
-        sampleRate: 44100
-      }
+        sampleRate: 44100,
+      },
     };
 
     let mediaStream: MediaStream | null = null;
@@ -99,7 +109,7 @@ export function Streams({
     return () => {
       // Cleanup media stream tracks to prevent echo
       if (mediaStream) {
-        mediaStream.getTracks().forEach(track => {
+        mediaStream.getTracks().forEach((track) => {
           track.stop();
         });
       }
@@ -107,12 +117,6 @@ export function Streams({
   }, [manager]);
 
   useEffect(() => {
-    socket.prependAny((eventName, ...args) => {
-      console.log(`Frontend - Event emitted: ${eventName}`, ...args);
-    });
-    socket.onAny((event, ...args) => {
-      console.log(`📡 Event received: ${event}`, ...args);
-    });
     // Add ICE candidate to peer connection
     const handleCandidateReceived = (data: { candidate: RTCIceCandidate }) => {
       if (data.candidate) {
@@ -122,7 +126,7 @@ export function Streams({
 
     // Set state to waiting when searching for a match
     const handleWaitingForMatch = () => {
-      console.log('Waiting for match...');
+      console.log("Waiting for match...");
       setConnectionState("waiting");
     };
 
@@ -153,16 +157,11 @@ export function Streams({
       }
     };
 
-    // setTimeout(() => {
-      console.log('socket',socket);
-      console.log('socket.id',socket.id);
-      console.log('Keys',Object.keys(socket));
-      console.log("TIMEOUT OVER");
-      // Register socket event listeners
-      socket.on(SOCKET_EVENTS.WAITING_FOR_MATCH, handleWaitingForMatch);
-      socket.on(SOCKET_EVENTS.ROOM_CREATED, handleRoomCreated);
-      socket.on(SOCKET_EVENTS.ROOM_MATE_LEFT, handleRoomMateLeft);
-      socket.on(SOCKET_EVENTS.CANDIDATE, handleCandidateReceived);
+    // Register socket event listeners
+    socket.on(SOCKET_EVENTS.WAITING_FOR_MATCH, handleWaitingForMatch);
+    socket.on(SOCKET_EVENTS.ROOM_CREATED, handleRoomCreated);
+    socket.on(SOCKET_EVENTS.ROOM_MATE_LEFT, handleRoomMateLeft);
+    socket.on(SOCKET_EVENTS.CANDIDATE, handleCandidateReceived);
     // }, 10000);
 
     return () => {
@@ -232,7 +231,11 @@ export function Streams({
     <div className={cn("gap-4 flex flex-col", className)} {...restProps}>
       <div className="gap-4 flex! lg:flex-col">
         <VideoPlayer ref={localVideoRef} userName={userName} muted={true} />
-        <VideoPlayer ref={remoteVideoRef} userName={opponentUserName} muted={false} />
+        <VideoPlayer
+          ref={remoteVideoRef}
+          userName={opponentUserName}
+          muted={false}
+        />
       </div>
       <Button
         onClick={buttonConfig.action}

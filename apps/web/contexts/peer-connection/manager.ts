@@ -10,6 +10,7 @@ type EventEmitterEvents = {
   connectionEstablished: void;
   onChessDataChannelOpen: void;
   onChessDataChannelMessage: { data: any };
+  disconnected: void;
 };
 
 export class PeerConnectionManager {
@@ -87,6 +88,15 @@ export class PeerConnectionManager {
       if (connectionState === "connected") {
         this.eventEmitter.emit("connectionEstablished", undefined);
         console.log("WebRTC connection established successfully!");
+      }
+
+      // Emit disconnected event if remote peer connection state changes to disconnected/failed/closed
+      if (
+        connectionState === "disconnected" ||
+        connectionState === "failed" ||
+        connectionState === "closed"
+      ) {
+        this.eventEmitter.emit("disconnected", undefined);
       }
     }
   };
