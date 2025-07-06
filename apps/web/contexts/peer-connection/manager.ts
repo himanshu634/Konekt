@@ -177,6 +177,7 @@ export class PeerConnectionManager {
 
       dataChannel.onerror = (error) => {
         console.error("Received data channel error:", error);
+        this.eventEmitter.emit("disconnected", undefined);
       };
     }
   };

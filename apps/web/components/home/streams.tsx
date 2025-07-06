@@ -2,7 +2,7 @@ import {
   useRef,
   useEffect,
   useCallback,
-  ComponentProps,
+  type ComponentProps,
   useState,
 } from "react";
 import { socket } from "@socket/socket";
@@ -34,8 +34,9 @@ export function Streams({
     // Handle incoming remote media tracks
     function handleTrack(event: RTCTrackEvent) {
       const remoteVideo = remoteVideoRef.current;
-      if (remoteVideo && event.streams[0] && event.streams.length > 0) {
-        remoteVideo.srcObject = event.streams[0];
+      const remoteStream = event.streams[0];
+      if (remoteVideo && remoteStream) {
+        remoteVideo.srcObject = remoteStream;
         remoteVideo.play();
       }
     }
