@@ -138,7 +138,7 @@ export function Chess() {
   const { width, height } = useWindowSize();
 
   // Initialize chess game
-  const [game] = useState(() => new ChessEngine());
+  const [game, setGame] = useState(() => new ChessEngine());
   const [gamePosition, setGamePosition] = useState(game.fen());
 
   // Determine player side - first player gets white, second gets black
@@ -276,8 +276,64 @@ export function Chess() {
     ]
   );
 
+  // Determine if the user has won (checkmate and user delivered mate)
+  const userWon =
+    gameState.isGameOver &&
+    gameState.result &&
+    ((playerSide === "w" && gameState.result.includes("White wins")) ||
+      (playerSide === "b" && gameState.result.includes("Black wins")));
+
+  // Determine if the user has lost
+  const userLost =
+    gameState.isGameOver &&
+    gameState.result &&
+    ((playerSide === "w" && gameState.result.includes("Black wins")) ||
+      (playerSide === "b" && gameState.result.includes("White wins")));
+
   return (
     <div className="flex flex-col items-center gap-4">
+      {/* Confetti when user wins */}
+      {userWon && (
+        <div className="absolute top-0 left-0 z-50 backdrop-blur-xs h-full w-full">
+          <Confetti
+            width={width || 800}
+            height={height || 600}
+            numberOfPieces={400}
+            friction={1}
+            recycle={false}
+          />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 backdrop-blur-lg bg-white/20 rounded-2xl flex items-center justify-center border border-white/20 p-6">
+            <p className="text-2xl text-white font-semibold">YOU WON</p>
+            {/* <Button
+              variant="secondary"
+              className="text-white backdrop-blur-md bg-white/20 hover:bg-white/40"
+              onClick={handleRequestPlayAgain}
+              size="lg"
+            >
+              Play again
+            </Button> */}
+          </div>
+        </div>
+      )}
+
+      {/* UI when user loses */}
+      {userLost && (
+        <div className="absolute top-0 left-0 z-50 backdrop-blur-xs h-full w-full">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 backdrop-blur-xl bg-red-400/20 rounded-2xl flex flex-col items-center justify-center gap-3 border border-red-500/30 p-6">
+            <p className="text-2xl text-red-500 font-semibold">CHECKMATE</p>
+            <p className="text-lg text-red-500">Better luck next time!</p>
+            {/* <Button
+              variant="destructive"
+              className="mt-2"
+              onClick={handleRequestPlayAgain}
+              size="lg"
+            >
+              Play again
+            </Button> */}
+          </div>
+        </div>
+      )}
+
       <div className="flex gap-4">
         {/* Player Side Indicator */}
         {playerSide && (
