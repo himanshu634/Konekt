@@ -18,7 +18,7 @@ import { PATHS } from "lib/paths";
 export function NameInput() {
   const [userName, setUserName] = useLocalStorage<string | undefined>(
     USER_NAME_KEY,
-    undefined
+    ""
   );
 
   const form = useForm<{ name: string }>({ defaultValues: { name: userName } });
