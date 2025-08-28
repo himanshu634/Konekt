@@ -70,19 +70,19 @@ export function Streams({
       setConnectionState("matched");
     }
 
-    function handleConnecttionDisconnected() {
+    function handleConnectionDisconnected() {
       handleShuffle();
     }
 
     manager?.on("track", handleTrack);
     manager?.on("connectionStateChange", handleConnectionStateChange);
     manager?.on("onUserReceived", handleUserReceived);
-    manager?.on("disconnected", handleConnecttionDisconnected);
+    manager?.on("disconnected", handleConnectionDisconnected);
     return () => {
       manager?.off("track", handleTrack);
       manager?.off("connectionStateChange", handleConnectionStateChange);
       manager?.off("onUserReceived", handleUserReceived);
-      manager?.off("disconnected", handleConnecttionDisconnected);
+      manager?.off("disconnected", handleConnectionDisconnected);
       manager?.destroy();
     };
   }, [manager, handleShuffle]);
@@ -105,7 +105,7 @@ export function Streams({
     let mediaStream: MediaStream | null = null;
 
     navigator.mediaDevices
-      .getUserMedia(constraints)
+      ?.getUserMedia(constraints)
       .then((streams) => {
         mediaStream = streams;
         localVideo.srcObject = streams;

@@ -201,7 +201,7 @@ export function Chess() {
     (sourceSquare: string, targetSquare: string, piece: string) => {
       // Prevent moves if game is over
       if (gameState.isGameOver) {
-        toast.error("Game is over! No more moves allowed.");
+        toast.info(gameState.result ?? "Game is over! No more moves allowed.");
         return false;
       }
       // Ensure player side is assigned
