@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { TurnIndicator } from "./turn-indicator";
 import { usePeerConnection } from "@contexts/peer-connection";
 import { useWindowSize } from "@uidotdev/usehooks";
-import Confetti from "react-confetti";
+import { getBoardWidth } from "lib/game";
 
 // Types for move tracking
 type Move = {
@@ -108,31 +108,6 @@ function validateMove({
   return { isValid: !!move, move };
 }
 
-function getChessboardWidth(
-  height: number | null | undefined,
-  width: number | null | undefined
-) {
-  // Reserve space for video streams and margins below the chessboard
-  const reservedHeight = 260; // px, adjust as needed for video area
-  const marginRatio = 0.9;
-  const minBoardSize = 240; // px
-  const maxBoardSize = 600; // px
-
-  if (
-    typeof width !== "number" ||
-    typeof height !== "number" ||
-    isNaN(width) ||
-    isNaN(height)
-  ) {
-    return minBoardSize;
-  }
-
-  // Calculate available height for the chessboard
-  const availableHeight = Math.max(height - reservedHeight, minBoardSize);
-  const size = Math.floor(Math.min(width, availableHeight) * marginRatio);
-  return Math.max(minBoardSize, Math.min(size, maxBoardSize));
-}
-
 export function Chess() {
   const { manager } = usePeerConnection();
   const { width, height } = useWindowSize();
@@ -155,7 +130,7 @@ export function Chess() {
     if (!manager) return;
 
     function handleConnectionEstablished() {
-      manager?.initiateChessDataChannel();
+      manager?.initiateGameDataChannel("chess");
       // Assign player side when connection is established
       // The initiator (not polite) gets white, the receiver (polite) gets black
       if (!manager) return;
@@ -188,11 +163,11 @@ export function Chess() {
     }
 
     manager.on("connectionEstablished", handleConnectionEstablished);
-    manager.on("onChessDataChannelMessage", handleChessDataChannelMessage);
+    manager.on("onGameDataChannelMessage", handleChessDataChannelMessage);
 
     return () => {
       manager.off("connectionEstablished", handleConnectionEstablished);
-      manager.off("onChessDataChannelMessage", handleChessDataChannelMessage);
+      manager.off("onGameDataChannelMessage", handleChessDataChannelMessage);
     };
   }, [manager, game, gameState.moves, playerSide]);
 
@@ -252,7 +227,7 @@ export function Chess() {
           onPositionUpdate: setGamePosition,
         });
         if (result.success && result.moveRecord) {
-          manager?.sendChessData({
+          manager?.sendGameData({
             type: "move",
             move: result.moveRecord,
           });
@@ -327,7 +302,7 @@ export function Chess() {
           showPromotionDialog
           boardOrientation={playerSide === "b" ? "black" : "white"}
           animationDuration={200}
-          boardWidth={getChessboardWidth(height, width)}
+          boardWidth={getBoardWidth(height, width)}
           onPieceDrop={handlePieceDrop}
         />
       </div>

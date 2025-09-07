@@ -5,13 +5,15 @@ import { Chess } from "../chess";
 import { cn } from "@konekt/ui/utils";
 import { useRouter } from "next/navigation";
 import { useReadLocalStorage } from "usehooks-ts";
-import { USER_NAME_KEY } from "lib/constant";
+import { USER_GAME_PREFERENCE, USER_NAME_KEY } from "lib/constant";
 import { useIsClient } from "@uidotdev/usehooks";
+import { TicTacToe } from "@components/tic-tac-toe";
 
 type HomePropsType = ComponentProps<"div">;
 
 export function Home({ className, ...restProps }: HomePropsType) {
   const userName = useReadLocalStorage(USER_NAME_KEY);
+  const gamePreference = useReadLocalStorage(USER_GAME_PREFERENCE);
   const router = useRouter();
   const isClient = useIsClient();
 
@@ -30,7 +32,7 @@ export function Home({ className, ...restProps }: HomePropsType) {
         )}
         {...restProps}
       >
-        <Chess />
+        {gamePreference === "chess" ? <Chess /> : <TicTacToe/>}
         <Streams userName={userName as string} />
       </div>
     );
