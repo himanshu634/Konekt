@@ -100,9 +100,6 @@ export function NameInput() {
                   <SelectTrigger className="w-full sm:w-96! text-xl sm:text-4xl! h-fit py-2 sm:py-5!">
                     <SelectValue
                       placeholder="Choose Your Game"
-                      onError={(e) => {
-                        console.log(e);
-                      }}
                     />
                   </SelectTrigger>
                   <SelectContent>

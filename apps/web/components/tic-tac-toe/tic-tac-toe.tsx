@@ -104,7 +104,7 @@ export function TicTacToe() {
     function handleConnectionEstablished() {
       manager?.initiateGameDataChannel("tic tac toe");
       // Assign player side when connection is established
-      // The initiator (not polite) gets white, the receiver (polite) gets black
+      // The initiator (not polite) gets "o", the receiver (polite) gets "x"
       if (!manager) return;
       const isInitiator = !manager.getIsPolite();
       setPlayerSide(isInitiator ? "x" : "o");
