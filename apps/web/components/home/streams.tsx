@@ -14,10 +14,12 @@ import { usePeerConnection } from "@contexts/peer-connection";
 
 type VideoPlayersPropsType = ComponentProps<"div"> & {
   userName: string;
+  gamePreference: string;
 };
 
 export function Streams({
   userName,
+  gamePreference,
   className,
   ...restProps
 }: VideoPlayersPropsType) {
@@ -185,8 +187,8 @@ export function Streams({
   // Emit event to join the matchmaking queue
   const handleFindMatch = useCallback(() => {
     setConnectionState("waiting");
-    socket.emit(SOCKET_EVENTS.JOIN_QUEUE, { userName });
-  }, [userName]);
+    socket.emit(SOCKET_EVENTS.JOIN_QUEUE, { userName, gamePreference });
+  }, [userName, gamePreference]);
 
   // Leave the matchmaking queue and reset state
   const handleLeaveQueue = useCallback(() => {

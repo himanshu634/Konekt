@@ -32,8 +32,8 @@ export function Home({ className, ...restProps }: HomePropsType) {
         )}
         {...restProps}
       >
-        {gamePreference === "chess" ? <Chess /> : <TicTacToe/>}
-        <Streams userName={userName as string} />
+        {gamePreference === "chess" ? <Chess /> : <TicTacToe />}
+        <Streams gamePreference={gamePreference as string} userName={userName as string} />
       </div>
     );
 }

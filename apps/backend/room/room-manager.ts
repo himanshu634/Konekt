@@ -4,7 +4,7 @@ import type { User } from "./user.interface";
 export class RoomManager {
   private rooms: Map<string, Room> = new Map();
   private users: Map<string, User> = new Map();
-  private waitingQueue: string[] = [];
+  private waitingQueue: Map<string, string[]> = new Map();
 
   // Generate a unique room ID
   private generateRoomId(): string {
@@ -12,36 +12,50 @@ export class RoomManager {
   }
 
   // Add user to waiting queue for matchmaking
-  addUserToQueue(socketId: string, userName: string): void {
+  addUserToQueue(
+    socketId: string,
+    userName: string,
+    gamePreference: "chess" | "tic-tac-toe"
+  ): void {
     // Create a new user object with their info
     const user: User = {
       socketId,
       userName,
       status: "waiting",
       joinedAt: new Date(),
+      gamePreference,
     };
 
     // Store the user in our users database
     this.users.set(socketId, user);
 
     // Add them to the end of the waiting queue
-    this.waitingQueue.push(socketId);
-
+    const isGameQueueExist: string[] | undefined =
+      this.waitingQueue.get(gamePreference);
+    if (isGameQueueExist) {
+      isGameQueueExist.push(socketId);
+    } else {
+      this.waitingQueue.set(gamePreference, [socketId]);
+    }
     console.log(
-      `User ${socketId} added to waiting queue. Queue length: ${this.waitingQueue.length}`
+      `User ${socketId} added to waiting queue. Queue length: ${this.waitingQueue.get(gamePreference)?.length}`
     );
   }
 
   // Try to match users and create a room (returns room info if successful)
-  tryCreateRoom(): { roomId: string; users: string[] } | null {
+  tryCreateRoom(
+    gamePreference: string
+  ): { roomId: string; users: string[] } | null {
     // Check if we have at least 2 people waiting
-    if (this.waitingQueue.length < 2) {
+    const waitingQueue: string[] | undefined =
+      this.waitingQueue.get(gamePreference);
+    if (!waitingQueue || waitingQueue.length < 2) {
       return null; // Not enough users to create a room
     }
 
     // Get the first 2 users from the queue (First In, First Out)
-    const user1Id = this.waitingQueue.shift()!; // shift() removes first element
-    const user2Id = this.waitingQueue.shift()!; // shift() removes first element
+    const user1Id = waitingQueue.shift()!; // shift() removes first element
+    const user2Id = waitingQueue.shift()!; // shift() removes first element
 
     // Create a new room with a unique ID
     const roomId = this.generateRoomId();
@@ -74,21 +88,33 @@ export class RoomManager {
   }
 
   // Remove user from system when they disconnect or leave
-  removeUser(
-    socketId: string
-  ): { roomId?: string; otherUserId?: string } | null {
+  removeUser(socketId: string): {
+    roomId?: string;
+    otherUserId?: string;
+    gamePreference?: string | undefined;
+  } | null {
     const user = this.users.get(socketId);
     if (!user) return null; // User doesn't exist
 
+    const gamePreference: string = user.gamePreference;
+    const waitingQueue: string[] | undefined =
+      this.waitingQueue.get(gamePreference);
+    if (!waitingQueue) {
+      return null; // return if there is no waiting queue for that game preference
+    }
     // Remove from waiting queue if they're still waiting
-    const queueIndex = this.waitingQueue.indexOf(socketId);
+    const queueIndex = waitingQueue.indexOf(socketId);
     if (queueIndex > -1) {
-      this.waitingQueue.splice(queueIndex, 1); // Remove from queue
+      waitingQueue.splice(queueIndex, 1); // Remove from queue
       console.log(`User ${socketId} removed from waiting queue`);
     }
 
     // Handle room cleanup if user was in a room
-    let result: { roomId?: string; otherUserId?: string } | null = null;
+    let result: {
+      roomId?: string;
+      otherUserId?: string;
+      gamePreference?: string | undefined;
+    } | null = null;
 
     if (user.roomId) {
       const room = this.rooms.get(user.roomId);
@@ -103,7 +129,7 @@ export class RoomManager {
             otherUser.roomId = undefined; // No longer in a room
             otherUser.status = "waiting"; // Back to waiting
             // Put them back in the queue for a new match
-            this.waitingQueue.push(otherUserId);
+            waitingQueue.push(otherUserId);
           }
         }
 
@@ -115,20 +141,23 @@ export class RoomManager {
 
         result = {
           roomId: user.roomId,
+          gamePreference: user.gamePreference,
           otherUserId,
         };
       }
     }
 
     // Remove user completely from the system
-    this.users.delete(socketId);
+    this.users.delete(socketId); 
     console.log(`User ${socketId} completely removed from system`);
 
     return result; // Return info about what was cleaned up
   }
 
   // Shuffle user to a new room
-  shuffleUser(socketId: string): { otherUserId?: string } | null {
+  shuffleUser(
+    socketId: string
+  ): { otherUserId?: string; gamePreference?: string | undefined } | null {
     const user = this.users.get(socketId);
     if (!user || !user.roomId) return null; // User not in a room
 
@@ -145,7 +174,15 @@ export class RoomManager {
     // Put the shuffling user back in the queue
     user.roomId = undefined;
     user.status = "waiting";
-    this.waitingQueue.push(socketId);
+    const waitingQueue: string[] | undefined = this.waitingQueue.get(
+      user.gamePreference
+    );
+    if (!waitingQueue) {
+      this.waitingQueue.set(user.gamePreference, [socketId]);
+    } else {
+      waitingQueue.push(socketId);
+    }
+
     console.log(`User ${socketId} is shuffling and back in queue.`);
 
     // Put the other user back in the queue
@@ -154,11 +191,17 @@ export class RoomManager {
       if (otherUser) {
         otherUser.roomId = undefined;
         otherUser.status = "waiting";
-        this.waitingQueue.push(otherUserId);
+        const otherUserWaitingQueue: string[] | undefined =
+          this.waitingQueue.get(otherUser.gamePreference);
+        if (!otherUserWaitingQueue) {
+          this.waitingQueue.set(otherUser.gamePreference, [otherUserId]);
+        } else {
+          otherUserWaitingQueue.push(otherUserId);
+        }
         console.log(`User ${otherUserId} put back into waiting queue.`);
+        return { otherUserId, gamePreference: otherUser.gamePreference };
       }
     }
-
     return { otherUserId };
   }
 
@@ -192,7 +235,10 @@ export class RoomManager {
   } {
     return {
       totalUsers: this.users.size, // How many users total
-      waitingUsers: this.waitingQueue.length, // How many waiting for match
+      waitingUsers: Array.from(this.waitingQueue.values()).reduce(
+        (prev, curr) => prev + curr.length,
+        0
+      ), // How many waiting for match
       activeRooms: this.rooms.size, // How many active rooms
     };
   }

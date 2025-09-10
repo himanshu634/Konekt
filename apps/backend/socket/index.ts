@@ -28,14 +28,14 @@ export function initializeSocket(httpServer: HTTPServer) {
       console.log(`📡 Event emitted: ${eventName}`, ...args);
     });
 
-    socket.on(SOCKET_EVENTS.JOIN_QUEUE, ({ userName }) => {
+    socket.on(SOCKET_EVENTS.JOIN_QUEUE, ({ userName, gamePreference }) => {
       console.log(`User ${socket.id} wants to join queue`, userName);
 
-      roomManager.addUserToQueue(socket.id, userName);
+      roomManager.addUserToQueue(socket.id, userName, gamePreference);
 
       socket.emit(SOCKET_EVENTS.WAITING_FOR_MATCH);
 
-      const roomResult = roomManager.tryCreateRoom();
+      const roomResult = roomManager.tryCreateRoom(gamePreference);
 
       if (roomResult) {
         const { roomId, users } = roomResult;
@@ -57,14 +57,14 @@ export function initializeSocket(httpServer: HTTPServer) {
     socket.on(SOCKET_EVENTS.LEAVE_QUEUE, () => {
       console.log(`User ${socket.id} leaving queue`);
       const result = roomManager.removeUser(socket.id);
-
-      if (result?.otherUserId) {
+      const gamePreference = result?.gamePreference;
+      if (result?.otherUserId && gamePreference) {
         io.to(result.otherUserId).emit(SOCKET_EVENTS.ROOM_MATE_LEFT, {
           message:
             "Your call partner left. You've been added back to the queue.",
         });
 
-        const newRoomResult = roomManager.tryCreateRoom();
+        const newRoomResult = roomManager.tryCreateRoom(gamePreference);
         if (newRoomResult) {
           const { roomId, users } = newRoomResult;
           users.forEach((userId) => {
@@ -83,8 +83,8 @@ export function initializeSocket(httpServer: HTTPServer) {
       console.log(`User ${socket.id} wants to shuffle.`);
 
       const shuffleResult = roomManager.shuffleUser(socket.id);
-
-      if (shuffleResult) {
+      const gamePreference = shuffleResult?.gamePreference;
+      if (shuffleResult && gamePreference) {
         const { otherUserId } = shuffleResult;
 
         // Notify the old partner that the user has left
@@ -94,7 +94,8 @@ export function initializeSocket(httpServer: HTTPServer) {
               "Your partner shuffled. You've been added back to the queue to find a new match.",
           });
           // Try to find a new match for the old partner immediately
-          const newRoomResultForOther = roomManager.tryCreateRoom();
+          const newRoomResultForOther =
+            roomManager.tryCreateRoom(gamePreference);
           if (newRoomResultForOther) {
             const { roomId, users } = newRoomResultForOther;
             users.forEach((userId) => {
@@ -112,7 +113,8 @@ export function initializeSocket(httpServer: HTTPServer) {
         socket.emit(SOCKET_EVENTS.WAITING_FOR_MATCH);
 
         // Try to find a new match for the shuffling user
-        const newRoomResultForShuffler = roomManager.tryCreateRoom();
+        const newRoomResultForShuffler =
+          roomManager.tryCreateRoom(gamePreference);
         if (newRoomResultForShuffler) {
           const { roomId, users } = newRoomResultForShuffler;
           users.forEach((userId) => {
@@ -137,8 +139,8 @@ export function initializeSocket(httpServer: HTTPServer) {
       console.log(`Socket disconnected: ${socket.id}, Reason: ${reason}`);
 
       const result = roomManager.removeUser(socket.id);
-
-      if (result?.otherUserId) {
+      const gamePreference = result?.gamePreference;
+      if (result?.otherUserId && gamePreference) {
         // Notify the other user that their room mate left
         io.to(result.otherUserId).emit(SOCKET_EVENTS.ROOM_MATE_LEFT, {
           message:
@@ -146,7 +148,7 @@ export function initializeSocket(httpServer: HTTPServer) {
         });
 
         // Try to find a new match for the remaining user
-        const newRoomResult = roomManager.tryCreateRoom();
+        const newRoomResult = roomManager.tryCreateRoom(gamePreference);
         if (newRoomResult) {
           const { roomId, users } = newRoomResult;
           users.forEach((userId) => {

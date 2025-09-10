@@ -1,6 +1,7 @@
 import React, { SetStateAction, useCallback, useEffect, useState } from "react";
 import { TicTacToeBoard } from "./tic-tac-toe-board";
 import { cn } from "@konekt/ui/utils";
+import Confetti from "react-confetti";
 import { toast } from "sonner";
 import { TurnIndicator } from "./turn-indicator";
 import { usePeerConnection } from "@contexts/peer-connection";
@@ -15,6 +16,7 @@ type GameState = {
   isGameOver: boolean;
   result?: string;
   turn: PlayerSide;
+  isWin: boolean;
 };
 
 // Valid board indices only
@@ -26,12 +28,14 @@ function applyMove({
   gamePosition,
   onPositionUpdate,
   onStateUpdate,
+  isMyMove,
 }: {
   index: number;
   turn: PlayerSide;
   gamePosition: string[];
   onStateUpdate: React.Dispatch<SetStateAction<GameState>>;
   onPositionUpdate: (newPositions: string[]) => void;
+  isMyMove: boolean;
 }): { success: boolean; result?: GameState } {
   try {
     const newPositions = [...gamePosition];
@@ -41,11 +45,12 @@ function applyMove({
       turn: turn === "o" ? "x" : "o",
       isGameOver: false,
       result: "",
+      isWin: false,
     };
 
     // All possible winning line combinations (vertically, horizontally, diagonals)
     const winningCombinations: [CellIndex, CellIndex, CellIndex][] = [
-      [0, 1, 2], // Row 1S
+      [0, 1, 2], // Row 1
       [3, 4, 5], // Row 2
       [6, 7, 8], // Row 3
       [0, 3, 6], // Column 1
@@ -64,6 +69,7 @@ function applyMove({
       ) {
         resultGameState.isGameOver = true;
         resultGameState.result = `${turn.toUpperCase()} wins!`;
+        resultGameState.isWin = isMyMove && true;
         onStateUpdate(resultGameState);
         return { success: true, result: resultGameState };
       }
@@ -96,6 +102,7 @@ export function TicTacToe() {
   const [gameState, setGameState] = useState<GameState>({
     turn: "o", // Always start with "o"
     isGameOver: false,
+    isWin: false,
   });
 
   useEffect(() => {
@@ -124,6 +131,7 @@ export function TicTacToe() {
             setGamePosition(newPositions);
           },
           gamePosition: receivedData.gamePosition,
+          isMyMove: false,
         });
         if (!move.success) {
           console.error("Invalid received index:", receivedData.index);
@@ -135,7 +143,7 @@ export function TicTacToe() {
           return false;
         }
       } catch (error) {
-        console.error("Error processing received chess data:", error);
+        console.error("Error processing received tic tac toe data:", error);
       }
     }
 
@@ -153,7 +161,7 @@ export function TicTacToe() {
 
   const handlePieceDrop = useCallback(
     (index: number) => {
-      if (index < 0 && index > 8) return;
+      if (index < 0 || index > 8) return;
       // Prevent moves if game is over
       if (gameState.isGameOver) {
         toast.info("Game is over! No more moves allowed.");
@@ -188,6 +196,7 @@ export function TicTacToe() {
         onPositionUpdate: (newPositions: string[]) => {
           setGamePosition(newPositions);
         },
+        isMyMove: true,
       };
 
       const move: { success: boolean; result?: GameState } =
@@ -252,6 +261,27 @@ export function TicTacToe() {
         onPieceDrop={handlePieceDrop}
         turn={gameState.turn}
       />
+      {gameState.isWin && (
+        <Confetti
+          width={width ?? 0}
+          height={height ?? 0}
+          numberOfPieces={400} // denser confetti
+          recycle={false} // stop after a burst (good for "celebration" moments)
+          gravity={0.3} // more natural falling speed
+          wind={0.01} // slight drift
+          initialVelocityX={{ min: -6, max: 6 }}
+          initialVelocityY={{ min: -15, max: 0 }} // burst upward then fall
+          tweenDuration={7000} // slower fade-in/out for pieces
+          colors={[
+            "#FF6B6B",
+            "#FFD93D",
+            "#6BCB77",
+            "#4D96FF",
+            "#FFB84C",
+            "#FF3CAC",
+          ]} // custom bright palette
+        />
+      )}
     </div>
   );
 }

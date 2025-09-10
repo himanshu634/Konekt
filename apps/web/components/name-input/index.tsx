@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from "@konekt/ui/select";
 
-type UserGamePreferenceType = "chess" | "tic-tac-toe" | "";
+type UserGamePreferenceType = "chess" | "tic-tac-toe";
 
 export function NameInput() {
   const [userName, setUserName] = useLocalStorage<string | undefined>(
@@ -32,7 +32,7 @@ export function NameInput() {
     ""
   );
   const [gamePreference, setGamePreference] =
-    useLocalStorage<UserGamePreferenceType>(USER_GAME_PREFERENCE, "");
+    useLocalStorage<UserGamePreferenceType>(USER_GAME_PREFERENCE, "chess");
 
   const form = useForm<{
     name: string;
