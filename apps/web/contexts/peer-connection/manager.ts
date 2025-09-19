@@ -8,8 +8,8 @@ type EventEmitterEvents = {
   connectionStateChange: RTCPeerConnectionState;
   onUserReceived: { user: { userName: string } };
   connectionEstablished: void;
-  onChessDataChannelOpen: void;
-  onChessDataChannelMessage: { data: any };
+  onGameDataChannelOpen: void;
+  onGameDataChannelMessage: { data: any };
   disconnected: void;
 };
 
@@ -21,7 +21,7 @@ export class PeerConnectionManager {
   private makingOffer = false;
   private ignoreOffer = false;
   private localStreams: MediaStream[] = [];
-  private chessDataChannel: RTCDataChannel | null = null;
+  private gameDataChannel: RTCDataChannel | null = null;
 
   constructor({ socket, isPolite }: { socket: Socket; isPolite: boolean }) {
     this.socket = socket;
@@ -154,24 +154,24 @@ export class PeerConnectionManager {
   private handleDataChannel = (event: RTCDataChannelEvent) => {
     const dataChannel = event.channel;
 
-    // Check if this is the chess data channel
-    if (dataChannel.label === "chess") {
-      console.log("Received chess data channel from peer");
-      this.chessDataChannel = dataChannel;
+    // Check if this is the chess or tic tac toe data channel
+    if (dataChannel.label === "chess" || dataChannel.label === "tic tac toe") {
+      console.log(`Received ${dataChannel.label} data channel from peer`);
+      this.gameDataChannel = dataChannel;
 
       dataChannel.onopen = (event) => {
         console.log("Received data channel opened", event);
-        this.eventEmitter.emit("onChessDataChannelOpen", undefined);
+        this.eventEmitter.emit("onGameDataChannelOpen", undefined);
       };
 
       dataChannel.onmessage = (event) => {
         try {
           const parsedData = JSON.parse(event.data);
-          this.eventEmitter.emit("onChessDataChannelMessage", {
+          this.eventEmitter.emit("onGameDataChannelMessage", {
             data: parsedData,
           });
         } catch (error) {
-          console.error("Error parsing received chess data:", error);
+          console.error("Error parsing received game data:", error);
         }
       };
 
@@ -183,24 +183,24 @@ export class PeerConnectionManager {
   };
 
   /**
-   * Initiates a data channel for chess game communication.
+   * Initiates a data channel for game / tic-tac-toe game communication.
    * @returns void
    */
-  public initiateChessDataChannel() {
+  public initiateGameDataChannel(game: string) {
     if (!this.peerConnection) return;
 
     try {
-      const dataChannel = this.peerConnection.createDataChannel("chess");
-      this.chessDataChannel = dataChannel;
+      const dataChannel = this.peerConnection.createDataChannel(game);
+      this.gameDataChannel = dataChannel;
       console.log("Data channel created:", dataChannel);
       dataChannel.onopen = (event) => {
-        this.chessDataChannel = dataChannel; // Store the channel for later use
-        this.eventEmitter.emit("onChessDataChannelOpen", undefined);
+        this.gameDataChannel = dataChannel; // Store the channel for later use
+        this.eventEmitter.emit("onGameDataChannelOpen", undefined);
         console.log("Data channel opened", event);
       };
       dataChannel.onmessage = (event) => {
         console.log("Received message:", event.data);
-        this.eventEmitter.emit("onChessDataChannelMessage", {
+        this.eventEmitter.emit("onGameDataChannelMessage", {
           data: event.data,
         });
       };
@@ -213,15 +213,15 @@ export class PeerConnectionManager {
     }
   }
 
-  public sendChessData(data: any) {
-    if (!this.chessDataChannel || this.chessDataChannel.readyState !== "open") {
+  public sendGameData(data: any) {
+    if (!this.gameDataChannel || this.gameDataChannel.readyState !== "open") {
       console.error("Data channel is not open. Cannot send data.");
       return;
     }
     try {
-      this.chessDataChannel.send(JSON.stringify(data));
+      this.gameDataChannel.send(JSON.stringify(data));
     } catch (error) {
-      console.error("Error sending chess data:", error);
+      console.error("Error sending game data:", error);
     }
   }
 

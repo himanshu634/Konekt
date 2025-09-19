@@ -3,10 +3,11 @@ import { Chessboard } from "react-chessboard";
 import { useState, useCallback, useEffect } from "react";
 import { Chess as ChessEngine } from "chess.js";
 import { toast } from "sonner";
+import Confetti from "react-confetti";
 import { TurnIndicator } from "./turn-indicator";
 import { usePeerConnection } from "@contexts/peer-connection";
 import { useWindowSize } from "@uidotdev/usehooks";
-import Confetti from "react-confetti";
+import { getBoardWidth } from "lib/game";
 
 // Types for move tracking
 type Move = {
@@ -24,6 +25,7 @@ type GameState = {
   currentPosition: string; // FEN notation
   turn: "w" | "b";
   isGameOver: boolean;
+  isWin: boolean;
   result?: string;
 };
 
@@ -54,12 +56,14 @@ function applyMove({
   prevMoves = [],
   onStateUpdate,
   onPositionUpdate,
+  isMyMove,
 }: {
   moveData: Move;
   game: ChessEngine;
   prevMoves?: Move[];
   onStateUpdate: (newState: GameState) => void;
   onPositionUpdate: (fen: string) => void;
+  isMyMove: boolean;
 }) {
   // Make the move on the local board
   const move = game.move({
@@ -85,10 +89,16 @@ function applyMove({
       turn: game.turn(),
       isGameOver: game.isGameOver(),
       result: game.isGameOver() ? getCurrentGameResult(game) : undefined,
+      isWin: isMyMove && game.isCheckmate(),
     };
     onStateUpdate(newState);
     onPositionUpdate(game.fen());
-    return { success: true, moveRecord };
+    return {
+      success: true,
+      moveRecord,
+      isGameOver: newState.isGameOver,
+      result: newState.result,
+    };
   } else {
     return { success: false };
   }
@@ -108,31 +118,6 @@ function validateMove({
   return { isValid: !!move, move };
 }
 
-function getChessboardWidth(
-  height: number | null | undefined,
-  width: number | null | undefined
-) {
-  // Reserve space for video streams and margins below the chessboard
-  const reservedHeight = 260; // px, adjust as needed for video area
-  const marginRatio = 0.9;
-  const minBoardSize = 240; // px
-  const maxBoardSize = 600; // px
-
-  if (
-    typeof width !== "number" ||
-    typeof height !== "number" ||
-    isNaN(width) ||
-    isNaN(height)
-  ) {
-    return minBoardSize;
-  }
-
-  // Calculate available height for the chessboard
-  const availableHeight = Math.max(height - reservedHeight, minBoardSize);
-  const size = Math.floor(Math.min(width, availableHeight) * marginRatio);
-  return Math.max(minBoardSize, Math.min(size, maxBoardSize));
-}
-
 export function Chess() {
   const { manager } = usePeerConnection();
   const { width, height } = useWindowSize();
@@ -149,13 +134,14 @@ export function Chess() {
     currentPosition: game.fen(),
     turn: "w", // Always start with white
     isGameOver: false,
+    isWin: false,
   });
 
   useEffect(() => {
     if (!manager) return;
 
     function handleConnectionEstablished() {
-      manager?.initiateChessDataChannel();
+      manager?.initiateGameDataChannel("chess");
       // Assign player side when connection is established
       // The initiator (not polite) gets white, the receiver (polite) gets black
       if (!manager) return;
@@ -178,9 +164,12 @@ export function Chess() {
           prevMoves: gameState.moves,
           onStateUpdate: setGameState,
           onPositionUpdate: setGamePosition,
+          isMyMove: false,
         });
         if (!result.success) {
           console.error("Invalid received move:", moveData);
+        } else if (result.isGameOver) {
+          toast.info(result.result ?? "Game is over! No more moves allowed.");
         }
       } catch (error) {
         console.error("Error processing received chess data:", error);
@@ -188,11 +177,11 @@ export function Chess() {
     }
 
     manager.on("connectionEstablished", handleConnectionEstablished);
-    manager.on("onChessDataChannelMessage", handleChessDataChannelMessage);
+    manager.on("onGameDataChannelMessage", handleChessDataChannelMessage);
 
     return () => {
       manager.off("connectionEstablished", handleConnectionEstablished);
-      manager.off("onChessDataChannelMessage", handleChessDataChannelMessage);
+      manager.off("onGameDataChannelMessage", handleChessDataChannelMessage);
     };
   }, [manager, game, gameState.moves, playerSide]);
 
@@ -201,7 +190,7 @@ export function Chess() {
     (sourceSquare: string, targetSquare: string, piece: string) => {
       // Prevent moves if game is over
       if (gameState.isGameOver) {
-        toast.info(gameState.result ?? "Game is over! No more moves allowed.");
+        toast.info("Game is over! No more moves allowed.");
         return false;
       }
       // Ensure player side is assigned
@@ -250,12 +239,16 @@ export function Chess() {
           prevMoves: gameState.moves,
           onStateUpdate: setGameState,
           onPositionUpdate: setGamePosition,
+          isMyMove: true,
         });
         if (result.success && result.moveRecord) {
-          manager?.sendChessData({
+          manager?.sendGameData({
             type: "move",
             move: result.moveRecord,
           });
+          if (result.isGameOver) {
+            toast.info(result.result ?? "Game is over! No more moves allowed.");
+          }
           return true;
         } else {
           toast.error("Invalid move! Please try a different move.");
@@ -327,10 +320,31 @@ export function Chess() {
           showPromotionDialog
           boardOrientation={playerSide === "b" ? "black" : "white"}
           animationDuration={200}
-          boardWidth={getChessboardWidth(height, width)}
+          boardWidth={getBoardWidth(height, width)}
           onPieceDrop={handlePieceDrop}
         />
       </div>
+      {gameState.isWin && (
+        <Confetti
+          width={width ?? 0}
+          height={height ?? 0}
+          numberOfPieces={400} // denser confetti
+          recycle={false} // stop after a burst (good for "celebration" moments)
+          gravity={0.3} // more natural falling speed
+          wind={0.01} // slight drift
+          initialVelocityX={{ min: -6, max: 6 }}
+          initialVelocityY={{ min: -15, max: 0 }} // burst upward then fall
+          tweenDuration={7000} // slower fade-in/out for pieces
+          colors={[
+            "#FF6B6B",
+            "#FFD93D",
+            "#6BCB77",
+            "#4D96FF",
+            "#FFB84C",
+            "#FF3CAC",
+          ]} // custom bright palette
+        />
+      )}
     </div>
   );
 }

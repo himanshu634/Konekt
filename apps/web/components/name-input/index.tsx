@@ -11,22 +11,42 @@ import { Input } from "@konekt/ui/input";
 import { Button } from "@konekt/ui/button";
 import { useForm } from "react-hook-form";
 import { useLocalStorage } from "usehooks-ts";
-import { USER_NAME_KEY } from "lib/constant";
+import { USER_GAME_PREFERENCE, USER_NAME_KEY } from "lib/constant";
 import { useRouter } from "next/navigation";
 import { PATHS } from "lib/paths";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@konekt/ui/select";
+
+type UserGamePreferenceType = "chess" | "tic-tac-toe";
 
 export function NameInput() {
   const [userName, setUserName] = useLocalStorage<string | undefined>(
     USER_NAME_KEY,
     ""
   );
+  const [gamePreference, setGamePreference] =
+    useLocalStorage<UserGamePreferenceType>(USER_GAME_PREFERENCE, "chess");
 
-  const form = useForm<{ name: string }>({ defaultValues: { name: userName } });
+  const form = useForm<{
+    name: string;
+    gamePreference: UserGamePreferenceType;
+  }>({ defaultValues: { name: userName, gamePreference: gamePreference } });
   const router = useRouter();
 
-  function onSubmit(values: { name: string }) {
-    if (values.name && values.name.length >= 3) {
+  function onSubmit(values: {
+    name: string;
+    gamePreference: UserGamePreferenceType;
+  }) {
+    if (values.name && values.name.length >= 3 && values.gamePreference) {
       setUserName(values.name);
+      setGamePreference(values.gamePreference);
       router.push(PATHS.PLAYGROUND);
     } else if (values.name && values.name.length < 3) {
       form.setError("name", {
@@ -34,19 +54,24 @@ export function NameInput() {
         message: "Name must be at least 3 characters long",
       });
       return;
-    } else {
+    } else if (!values.name) {
       form.setError("name", {
         type: "manual",
         message: "Name is required",
       });
       return;
+    } else {
+      form.setError("gamePreference", {
+        type: "manual",
+        message: "Please select game!",
+      });
     }
     // router.push(PATHS.PLAYGROUND + `?name=${encodeURIComponent(values.name)}`);
   }
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         <FormField
           control={form.control}
           name="name"
@@ -65,7 +90,32 @@ export function NameInput() {
             </FormItem>
           )}
         />
-        <div className="flex justify-end">
+        <FormField
+          control={form.control}
+          name="gamePreference"
+          render={({ field }) => (
+            <FormItem>
+              <FormControl>
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <SelectTrigger className="w-full sm:w-96! text-xl sm:text-4xl! h-fit py-2 sm:py-5!">
+                    <SelectValue
+                      placeholder="Choose Your Game"
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectLabel>Games</SelectLabel>
+                      <SelectItem value="chess">Chess</SelectItem>
+                      <SelectItem value="tic-tac-toe">Tic Tac Toe</SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <div className="flex justify-end mt-6">
           <Button size="lg" type="submit" variant="outline">
             Submit
           </Button>
